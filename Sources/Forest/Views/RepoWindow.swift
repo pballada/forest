@@ -56,7 +56,7 @@ private struct RepoContent: View {
         .navigationSubtitle(subtitle)
         .toolbar { RepoToolbar(store: store) }
         .focusedSceneValue(\.repoStore, store)
-        .overlay(alignment: .bottom) { ToastView(message: store.toast) }
+        .overlay(alignment: .bottom) { ToastView(store: store) }
         .overlay {
             if store.showPalette {
                 CommandPalette(store: store)
@@ -77,6 +77,7 @@ private struct RepoContent: View {
             Text(confirmation.message)
         }
         .frame(minWidth: 960, minHeight: 600)
+        .tint(Theme.leaf)
     }
 
     private var subtitle: String {
@@ -122,6 +123,9 @@ private struct OperationBanner: View {
             Spacer()
             if !store.status.conflicted.isEmpty {
                 Button("Show Conflicts") { store.sidebar = .changes }
+                Button { store.resolveConflictsWithClaude() } label: { Label("Resolve with Claude", systemImage: "sparkles") }
+                    .tint(Theme.claude)
+                    .help("Opens Claude Code in your terminal to resolve the conflict markers; you review before continuing")
             }
             Button("Abort", role: .destructive) { store.abortOperation() }
             Button("Continue") { store.continueOperation() }
@@ -137,20 +141,37 @@ private struct OperationBanner: View {
 }
 
 private struct ToastView: View {
-    let message: String?
+    let store: RepoStore
 
     var body: some View {
-        if let message {
-            Label(message, systemImage: "checkmark.circle.fill")
-                .font(.system(size: 12.5, weight: .medium))
-                .symbolRenderingMode(.multicolor)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(.regularMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
-                .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
-                .padding(.bottom, 22)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+        if let message = store.toast {
+            HStack(spacing: 10) {
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 22, height: 22)
+                    .background(Circle().fill(Theme.leafGradient))
+                Text(message)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .lineLimit(1)
+                if let undo = store.undo {
+                    Divider().frame(height: 14)
+                    Button("Undo") { store.performUndo() }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(Theme.leaf)
+                        .help("Undo \(undo.title.lowercased()) (⌥⌘Z)")
+                }
+            }
+            .padding(.leading, 6)
+            .padding(.trailing, 14)
+            .padding(.vertical, 6)
+            .background(.regularMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.leaf.opacity(0.25)))
+            .shadow(color: Theme.leaf.opacity(0.18), radius: 14, y: 5)
+            .padding(.bottom, 22)
+            .frame(maxWidth: 560)
+            .transition(.move(edge: .bottom).combined(with: .scale(scale: 0.9)).combined(with: .opacity))
         }
     }
 }
@@ -258,7 +279,7 @@ private struct BranchMenu: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: store.currentWorktree?.isClaude == true ? "sparkles" : "arrow.triangle.branch")
-                    .foregroundStyle(store.currentWorktree?.isClaude == true ? Theme.claude : Color.accentColor)
+                    .foregroundStyle(store.currentWorktree?.isClaude == true ? Theme.claude : Theme.leaf)
                 Text(store.status.branch ?? "Detached")
                     .fontWeight(.semibold)
                     .lineLimit(1)
@@ -291,6 +312,8 @@ struct SheetHost: View {
             StashSheet(store: store)
         case .addRemote:
             AddRemoteSheet(store: store)
+        case .review(let worktree):
+            AgentReviewView(worktree: worktree, store: store)
         }
     }
 }

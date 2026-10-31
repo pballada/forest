@@ -36,16 +36,50 @@ public struct FileDiff: Hashable, Sendable {
     public let hunks: [DiffHunk]
     public let isBinary: Bool
     public let isTruncated: Bool
+    public let additions: Int
+    public let deletions: Int
+    /// Hash of the diff's text, so huge diffs compare in O(1).
+    public let fingerprint: Int
+
+    public init(oldPath: String?, newPath: String?, headerLines: [String], hunks: [DiffHunk], isBinary: Bool, isTruncated: Bool) {
+        self.oldPath = oldPath
+        self.newPath = newPath
+        self.headerLines = headerLines
+        self.hunks = hunks
+        self.isBinary = isBinary
+        self.isTruncated = isTruncated
+        var adds = 0, dels = 0
+        var hasher = Hasher()
+        hasher.combine(headerLines)
+        for hunk in hunks {
+            hasher.combine(hunk.header)
+            for line in hunk.lines {
+                if line.kind == .addition { adds += 1 } else if line.kind == .deletion { dels += 1 }
+                hasher.combine(line.kind)
+                hasher.combine(line.text)
+            }
+        }
+        additions = adds
+        deletions = dels
+        fingerprint = hasher.finalize()
+    }
 
     public var path: String { newPath ?? oldPath ?? "" }
-    public var additions: Int { hunks.reduce(0) { $0 + $1.lines.filter { $0.kind == .addition }.count } }
-    public var deletions: Int { hunks.reduce(0) { $0 + $1.lines.filter { $0.kind == .deletion }.count } }
     public var isNewFile: Bool { oldPath == nil }
     public var isDeletedFile: Bool { newPath == nil }
+    public var lineCount: Int { hunks.reduce(0) { $0 + $1.lines.count } }
+
+    public static func == (lhs: FileDiff, rhs: FileDiff) -> Bool {
+        lhs.fingerprint == rhs.fingerprint && lhs.path == rhs.path && lhs.isBinary == rhs.isBinary
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(fingerprint)
+    }
 }
 
 public enum DiffParser {
-    public static let maxLines = 25_000
+    public static let maxLines = 400_000
 
     public static func parse(_ text: String) -> [FileDiff] {
         var files: [FileDiff] = []

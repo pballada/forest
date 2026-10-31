@@ -17,6 +17,7 @@ enum SheetKind: Identifiable {
     case newWorktree(base: String?, claude: Bool)
     case stash
     case addRemote
+    case review(Worktree)
 
     var id: String {
         switch self {
@@ -26,6 +27,7 @@ enum SheetKind: Identifiable {
         case .newWorktree(let b, let c): "wt-\(b ?? "")-\(c)"
         case .stash: "stash"
         case .addRemote: "remote"
+        case .review(let w): "review-\(w.path)"
         }
     }
 }
@@ -37,6 +39,21 @@ struct Confirmation: Identifiable {
     let actionTitle: String
     var destructive = true
     let action: () -> Void
+}
+
+/// The last thing Forest did that it knows how to take back.
+struct UndoEntry: Identifiable {
+    let id = UUID()
+    let title: String
+    let perform: () async throws -> Void
+}
+
+/// Text Claude wrote for the user (a commit explanation, a review), shown in a popover or panel.
+struct ClaudeNote: Equatable {
+    var title: String
+    var text: String?
+    var error: String?
+    var loading: Bool { text == nil && error == nil }
 }
 
 struct AlertMessage: Identifiable {
@@ -65,6 +82,8 @@ final class RepoStore {
     var worktreeStatus: [String: WorktreeStatus] = [:]
     var claudeSessions: [String: ClaudeSessionInfo] = [:]
     var operation: RepoOperation = .none
+    var lineCounts: [String: (Int, Int)] = [:]
+    var pullRequests: [PullRequest] = []
     var mainRoot: URL?
     var loaded = false
     var canLoadMore = false
@@ -80,12 +99,16 @@ final class RepoStore {
     var changeDiff: FileDiff?
     var selectedLines: Set<Int> = []
     var historyFilter = ""
+    /// When set, history shows only this ref's ancestry ("solo" a branch).
+    var historyScope: String?
     var scrollTarget: String?
+    var diffOptions = Preferences.diffOptions
 
     // Composer
     var commitSummary = ""
     var commitDescription = ""
     var amend = false
+    var generatingMessage = false
 
     // Presentation
     var busy: String?
@@ -94,6 +117,10 @@ final class RepoStore {
     var confirmation: Confirmation?
     var sheet: SheetKind?
     var showPalette = false
+    var undo: UndoEntry?
+    /// Bumped after a commit so the composer can play its little celebration.
+    var celebration = 0
+    var commitExplanation: ClaudeNote?
 
     @ObservationIgnored private var watcher: FileWatcher?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
@@ -194,17 +221,33 @@ final class RepoStore {
             }
             pruneSelection()
             if let change = focusedChange { await loadDiff(for: change) } else { changeDiff = nil }
+            lineCounts = await repo.workingCopyLineCounts()
             loaded = true
         } catch {
             show(error)
         }
         await refreshWorktreeStatuses()
         refreshClaudeSessions()
+        if full { refreshPullRequests() }
+    }
+
+    func refreshPullRequests() {
+        guard Preferences.pullRequests, remotes.contains(where: { $0.fetchURL.contains("github.com") }) else { return }
+        let root = repository.root
+        Task {
+            let prs = await GitHubCLI.pullRequests(in: root)
+            pullRequests = prs
+        }
+    }
+
+    func pullRequest(for branch: String?) -> PullRequest? {
+        guard let branch else { return nil }
+        return pullRequests.first { $0.branch == branch }
     }
 
     func reloadHistory() async {
         let limit = Preferences.historyLimit
-        let log = (try? await repository.log(limit: limit)) ?? []
+        let log = (try? await repository.log(limit: limit, revisions: historyScope.map { [$0] })) ?? []
         commits = log
         canLoadMore = log.count >= limit
         graph = GraphLayout.layout(log, head: status.headSHA)
@@ -215,7 +258,7 @@ final class RepoStore {
     }
 
     func loadMoreHistory() async {
-        let more = (try? await repository.log(limit: Preferences.historyLimit, skip: commits.count)) ?? []
+        let more = (try? await repository.log(limit: Preferences.historyLimit, skip: commits.count, revisions: historyScope.map { [$0] })) ?? []
         commits += more
         canLoadMore = more.count >= Preferences.historyLimit
         graph = GraphLayout.layout(commits, head: status.headSHA)
@@ -260,6 +303,7 @@ final class RepoStore {
         selectedCommitID = id
         commitDiff = nil
         selectedCommitFile = nil
+        commitExplanation = nil
         var found = commits.first { $0.id == id }
         if found == nil, let id { found = try? await repository.log(limit: 1, revisions: [id]).first }
         guard let id, let commit = found else {
@@ -285,14 +329,64 @@ final class RepoStore {
         if parent == nil, !commits.contains(where: { $0.id == id }) {
             parent = try? await repository.log(limit: 1, revisions: [id]).first?.parents.first
         }
-        commitDiff = try? await repository.diff(of: file, in: id, parent: parent)
+        commitDiff = try? await repository.diff(of: file, in: id, parent: parent, options: diffOptions)
     }
 
     func loadDiff(for change: FileChange) async {
-        let diff = try? await repository.diff(of: change)
-        if diff != changeDiff {
+        let diff = try? await repository.diff(of: change, options: diffOptions)
+        if diff?.fingerprint != changeDiff?.fingerprint || diff?.path != changeDiff?.path {
             changeDiff = diff
             selectedLines = []
+        }
+    }
+
+    func setFullFile(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: SettingsKey.diffFullFile)
+        diffOptions = Preferences.diffOptions
+        reloadDiffs()
+    }
+
+    func setIgnoreWhitespace(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: SettingsKey.diffIgnoreWhitespace)
+        diffOptions = Preferences.diffOptions
+        reloadDiffs()
+    }
+
+    private func reloadDiffs() {
+        Task {
+            if let change = focusedChange { await loadDiff(for: change) }
+            if let file = selectedCommitFile { await selectCommitFile(file) }
+        }
+    }
+
+    /// Before/after bytes for a working-copy change, for the image comparison.
+    func imagePair(for change: FileChange) -> ImagePairLoader {
+        let repo = repository
+        return {
+            let working = { try? Data(contentsOf: repo.root.appendingPathComponent(change.path)) }
+            if change.status == .untracked { return (nil, working()) }
+            if change.staged {
+                return (await repo.blob("HEAD:\(change.originalPath ?? change.path)"), await repo.blob(":\(change.path)"))
+            }
+            return (await repo.blob(":\(change.path)"), working())
+        }
+    }
+
+    func imagePair(commit sha: String, parent: String?, file: FileChange) -> ImagePairLoader {
+        let repo = repository
+        return {
+            let before = parent == nil ? nil : await repo.blob("\(parent!):\(file.originalPath ?? file.path)")
+            return (before, await repo.blob("\(sha):\(file.path)"))
+        }
+    }
+
+    /// Show only `ref`'s history (nil shows everything again).
+    func solo(_ ref: String?) {
+        historyScope = ref
+        sidebar = .history
+        Task {
+            selectedCommitID = nil
+            await reloadHistory()
         }
     }
 
@@ -308,6 +402,7 @@ final class RepoStore {
     func run(_ label: String, success: String? = nil, _ work: @escaping () async throws -> Void) {
         Task {
             busy = label
+            undo = nil
             defer { busy = nil }
             do {
                 try await work()
@@ -319,17 +414,48 @@ final class RepoStore {
         }
     }
 
+    /// Runs an operation that moves HEAD and offers to put it back afterwards.
+    /// Undo uses `reset --keep`, which refuses rather than overwriting uncommitted work.
+    func runUndoable(_ label: String, success: String, undoTitle: String, _ work: @escaping () async throws -> Void) {
+        Task {
+            let before = await repository.headSHA()
+            let branch = status.branch
+            run(label, success: success) {
+                try await work()
+                guard let before, await self.repository.headSHA() != before else { return }
+                if await self.repository.operation() != .none { return }
+                self.offerUndo(undoTitle) {
+                    if let branch, self.status.branch != branch { try await self.repository.git.run(["switch", branch]) }
+                    try await self.repository.rewind(to: before)
+                }
+            }
+        }
+    }
+
+    func offerUndo(_ title: String, _ perform: @escaping () async throws -> Void) {
+        undo = UndoEntry(title: title, perform: perform)
+    }
+
+    func performUndo() {
+        guard let entry = undo else { return }
+        undo = nil
+        run("Undoing", success: "Undid \(entry.title.lowercased())") { try await entry.perform() }
+    }
+
     func show(_ error: Error) {
         alert = AlertMessage(title: "Something went wrong", message: error.localizedDescription)
     }
 
     func flash(_ message: String) {
         toastTask?.cancel()
-        withAnimation(.spring(duration: 0.3)) { toast = message }
+        withAnimation(.spring(duration: 0.35, bounce: 0.3)) { toast = message }
         toastTask = Task {
-            try? await Task.sleep(for: .seconds(2.4))
+            // Linger longer when the toast offers Undo.
+            try? await Task.sleep(for: .seconds(undo == nil ? 2.4 : 6))
             guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.3)) { toast = nil }
+            try? await Task.sleep(for: .seconds(0.3))
+            undo = nil
         }
     }
 
@@ -356,9 +482,12 @@ final class RepoStore {
         let unstaged = changes.filter { !$0.staged }
         guard !unstaged.isEmpty else { return }
         let names = unstaged.count == 1 ? "“\(unstaged[0].fileName)”" : "\(unstaged.count) files"
-        confirm("Discard changes to \(names)?", "Modified files are restored from the index. Untracked files are moved to the Trash.",
+        confirm("Discard changes to \(names)?", "Modified files are restored from the index. Untracked files are moved to the Trash. You can undo this right after.",
                 action: "Discard") {
-            self.run("Discarding") { try await self.repository.discard(unstaged) }
+            self.run("Discarding", success: "Discarded \(names)") {
+                let backup = try await self.repository.discard(unstaged)
+                self.offerUndo("Discard") { try self.repository.restore(backup) }
+            }
         }
     }
 
@@ -373,9 +502,12 @@ final class RepoStore {
         }
         let reverse = action != .stage
         guard let patch = PatchBuilder.patch(file: diff, hunk: hunk, selected: selection, reverse: reverse) else { return }
+        let path = change.path
         let apply = {
-            self.run(action.progress) {
+            self.run(action.progress, success: action == .discard ? "Discarded \(selection == nil ? "hunk" : "lines")" : nil) {
+                let backup = action == .discard ? WorkingCopyBackup(capturing: [path], in: self.repository.root) : nil
                 try await self.repository.apply(patch: patch, toIndex: action != .discard, reverse: reverse)
+                if let backup { self.offerUndo("Discard") { try self.repository.restore(backup) } }
             }
             self.selectedLines = []
         }
@@ -416,12 +548,23 @@ final class RepoStore {
         let body = commitDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         if !body.isEmpty { message += "\n\n" + body }
         let amending = amend
-        run(andPush ? "Committing & pushing" : "Committing", success: amending ? "Commit amended" : "Committed") {
+        let summary = commitSummary
+        run(andPush ? "Committing & pushing" : "Committing", success: amending ? "Commit amended" : "Committed “\(summary)”") {
+            let before = await self.repository.headSHA()
             try await self.repository.commit(message: message, amend: amending)
             self.commitSummary = ""
             self.commitDescription = ""
             self.amend = false
-            if andPush { try await self.repository.push(force: amending) }
+            self.celebration += 1
+            if andPush {
+                try await self.repository.push(force: amending)
+            } else if let before {
+                // Soft reset: the commit disappears and its changes return to the staging area.
+                self.offerUndo(amending ? "Amend" : "Commit") {
+                    try await self.repository.reset(to: before, mode: .soft)
+                    self.commitSummary = summary
+                }
+            }
         }
     }
 
@@ -430,7 +573,7 @@ final class RepoStore {
     func fetch() { run("Fetching", success: "Fetched all remotes") { try await self.repository.fetch() } }
 
     func pull(_ strategy: PullStrategy = Preferences.pullStrategy) {
-        run("Pulling", success: "Pulled") { try await self.repository.pull(strategy: strategy) }
+        runUndoable("Pulling", success: "Pulled", undoTitle: "Pull") { try await self.repository.pull(strategy: strategy) }
     }
 
     func push(force: Bool = false) {
@@ -457,7 +600,11 @@ final class RepoStore {
             }
             return
         }
-        run("Checking out \(branch.name)", success: "Switched to \(branch.nameWithoutRemote)") { try await self.repository.checkout(branch) }
+        let previous = status.branch
+        run("Checking out \(branch.name)", success: "Switched to \(branch.nameWithoutRemote)") {
+            try await self.repository.checkout(branch)
+            if let previous { self.offerUndo("Checkout") { try await self.repository.git.run(["switch", previous]) } }
+        }
     }
 
     func checkout(commit: Commit) {
@@ -485,6 +632,9 @@ final class RepoStore {
                 } catch let error as GitError where error.stderr.contains("not fully merged") {
                     try await self.repository.deleteBranch(branch, force: true)
                 }
+                if !branch.isRemote {
+                    self.offerUndo("Delete") { try await self.repository.createBranch(branch.name, at: branch.sha, checkout: false) }
+                }
             }
         }
     }
@@ -493,7 +643,7 @@ final class RepoStore {
         let into = status.branch ?? "HEAD"
         confirm("Merge “\(revision)” into “\(into)”?", "Creates a merge commit unless the merge can fast-forward.",
                 action: "Merge", destructive: false) {
-            self.run("Merging", success: "Merged \(revision)") { try await self.repository.merge(revision) }
+            self.runUndoable("Merging", success: "Merged \(revision)", undoTitle: "Merge") { try await self.repository.merge(revision) }
         }
     }
 
@@ -501,16 +651,16 @@ final class RepoStore {
         let branch = status.branch ?? "HEAD"
         confirm("Rebase “\(branch)” onto “\(revision)”?", "Rewrites the commits on \(branch). Don't rebase commits others have pulled.",
                 action: "Rebase", destructive: false) {
-            self.run("Rebasing", success: "Rebased onto \(revision)") { try await self.repository.rebase(onto: revision) }
+            self.runUndoable("Rebasing", success: "Rebased onto \(revision)", undoTitle: "Rebase") { try await self.repository.rebase(onto: revision) }
         }
     }
 
     func cherryPick(_ commit: Commit) {
-        run("Cherry-picking", success: "Cherry-picked \(commit.shortSHA)") { try await self.repository.cherryPick(commit) }
+        runUndoable("Cherry-picking", success: "Cherry-picked \(commit.shortSHA)", undoTitle: "Cherry-pick") { try await self.repository.cherryPick(commit) }
     }
 
     func revert(_ commit: Commit) {
-        run("Reverting", success: "Reverted \(commit.shortSHA)") { try await self.repository.revert(commit) }
+        runUndoable("Reverting", success: "Reverted \(commit.shortSHA)", undoTitle: "Revert") { try await self.repository.revert(commit) }
     }
 
     func reset(to commit: Commit, mode: ResetMode) {
@@ -521,7 +671,13 @@ final class RepoStore {
         case .hard: "Discards all uncommitted changes. This cannot be undone."
         }
         confirm("Reset “\(branch)” to \(commit.shortSHA) (\(mode.rawValue))?", detail, action: "Reset", destructive: mode == .hard) {
-            self.run("Resetting", success: "Reset to \(commit.shortSHA)") { try await self.repository.reset(to: commit.sha, mode: mode) }
+            if mode == .hard {
+                self.run("Resetting", success: "Reset to \(commit.shortSHA)") { try await self.repository.reset(to: commit.sha, mode: mode) }
+            } else {
+                self.runUndoable("Resetting", success: "Reset to \(commit.shortSHA)", undoTitle: "Reset") {
+                    try await self.repository.reset(to: commit.sha, mode: mode)
+                }
+            }
         }
     }
 
@@ -552,7 +708,12 @@ final class RepoStore {
     }
 
     func stash(message: String, includeUntracked: Bool) {
-        run("Stashing", success: "Changes stashed") { try await self.repository.stash(message: message, includeUntracked: includeUntracked) }
+        run("Stashing", success: "Changes stashed") {
+            try await self.repository.stash(message: message, includeUntracked: includeUntracked)
+            self.offerUndo("Stash") {
+                if let top = try await self.repository.stashes().first { try await self.repository.applyStash(top, pop: true) }
+            }
+        }
     }
 
     func apply(_ stash: Stash, pop: Bool) {
@@ -661,6 +822,70 @@ final class RepoStore {
                 Launcher.openURL(web.appendingPathComponent("compare").appendingPathComponent(encoded).appending(queryItems: [URLQueryItem(name: "expand", value: "1")]))
             }
         }
+    }
+
+    // MARK: - Claude
+
+    var claudeExecutable: String? { ClaudeCode.locateCLI(override: Preferences.claudePath) }
+
+    /// Asks Claude Code (headless, no tools) for a commit message describing the staged changes.
+    func generateCommitMessage() {
+        guard !generatingMessage else { return }
+        guard !status.staged.isEmpty else {
+            alert = AlertMessage(title: "Nothing staged", message: "Stage the changes you want to commit, then ask Claude to describe them.")
+            return
+        }
+        generatingMessage = true
+        Task {
+            defer { generatingMessage = false }
+            do {
+                let patch = try await repository.stagedPatchForReview()
+                let text = try await ClaudeHeadless.run(prompt: ClaudeHeadless.commitMessagePrompt, input: patch, directory: repository.root,
+                                                        executable: claudeExecutable, model: Preferences.claudeModel)
+                let message = ClaudeHeadless.splitCommitMessage(text)
+                withAnimation(.snappy) {
+                    commitSummary = message.summary
+                    commitDescription = message.body
+                }
+            } catch {
+                alert = AlertMessage(title: "Claude couldn't write a message", message: error.localizedDescription)
+            }
+        }
+    }
+
+    func explain(_ commit: Commit) {
+        let sha = commit.sha
+        commitExplanation = ClaudeNote(title: commit.subject)
+        Task {
+            do {
+                let patch = try await repository.commitPatchForReview(sha, parent: commit.parents.first)
+                let text = try await ClaudeHeadless.run(prompt: ClaudeHeadless.explainCommitPrompt, input: patch, directory: repository.root,
+                                                        executable: claudeExecutable, model: Preferences.claudeModel)
+                if selectedCommitID == sha { commitExplanation?.text = text }
+            } catch {
+                if selectedCommitID == sha { commitExplanation?.error = error.localizedDescription }
+            }
+        }
+    }
+
+    /// Opens Claude Code in the terminal with instructions to resolve the current conflicts.
+    func resolveConflictsWithClaude() {
+        let files = status.conflicted.map(\.path)
+        let operation = self.operation == .none ? "merge" : self.operation.title.lowercased()
+        let prompt = """
+        There are merge conflicts in this repository (\(operation)). Resolve the conflict markers in: \(files.joined(separator: ", ")).
+        Keep the intent of both sides; if they truly contradict, prefer the incoming change and tell me. \
+        Build or run the tests if that's quick, then `git add` each resolved file. \
+        Don't commit and don't continue the operation: I'll review the result in Forest.
+        """
+        Launcher.launchClaude(in: repository.root, prompt: prompt)
+        flash("Claude is resolving \(files.count) conflict\(files.count == 1 ? "" : "s") in your terminal")
+    }
+
+    /// Sends a follow-up instruction to the agent working in `worktree`, continuing its last conversation.
+    func sendFeedback(_ text: String, to worktree: Worktree) {
+        Launcher.launchClaude(in: worktree.url, prompt: text, continuing: claudeSessions[worktree.path] != nil)
+        flash("Sent to \(worktree.name)")
     }
 
     func commitsAhead(of worktree: Worktree) async -> [Commit] {

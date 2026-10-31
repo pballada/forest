@@ -10,6 +10,7 @@ struct ForestApp: App {
         Window("Welcome to Forest", id: "welcome") {
             WelcomeView()
                 .frame(width: 760, height: 500)
+                .tint(Theme.leaf)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
@@ -27,6 +28,7 @@ struct ForestApp: App {
 
         Settings {
             SettingsView()
+                .tint(Theme.leaf)
         }
     }
 }
@@ -128,6 +130,10 @@ struct ForestCommands: Commands {
             Button("History") { store?.sidebar = .history }.keyboardShortcut("2")
             Button("Worktrees") { store?.sidebar = .worktrees }.keyboardShortcut("3")
             Divider()
+            Button(store?.undo.map { "Undo \($0.title)" } ?? "Undo") { store?.performUndo() }
+                .keyboardShortcut("z", modifiers: [.command, .option])
+                .disabled(store?.undo == nil)
+            Divider()
             Button("Refresh") { Task { await store?.refresh(full: true) } }.keyboardShortcut("r")
             Button("Fetch") { store?.fetch() }.keyboardShortcut("f", modifiers: [.command, .shift])
             Button("Pull") { store?.pull() }.keyboardShortcut("p", modifiers: [.command, .shift])
@@ -136,6 +142,9 @@ struct ForestCommands: Commands {
             Button("Commit") { store?.commit() }
                 .keyboardShortcut(.return)
                 .disabled(store?.canCommit != true)
+            Button("Write Commit Message with Claude") { store?.generateCommitMessage() }
+                .keyboardShortcut("m", modifiers: [.command, .option])
+                .disabled(store == nil || store?.status.staged.isEmpty == true)
             Button("Stage All") { store?.stageAll() }.keyboardShortcut("a", modifiers: [.command, .shift])
             Button("Stash Changes…") { store?.sheet = .stash }.keyboardShortcut("s", modifiers: [.command, .option])
             Divider()

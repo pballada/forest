@@ -7,6 +7,19 @@ enum Launcher {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
+    static func openInEditor(_ url: URL, line: Int?, editor: EditorApp = Preferences.editor) {
+        guard let line else { return openInEditor(url, editor: editor) }
+        let path = url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? url.path
+        switch editor {
+        case .vscode: openURL(URL(string: "vscode://file\(path):\(line)")!)
+        case .cursor: openURL(URL(string: "cursor://file\(path):\(line)")!)
+        case .zed: openURL(URL(string: "zed://file\(path):\(line)")!)
+        case .xcode: run("/usr/bin/xcrun", ["xed", "--line", "\(line)", url.path])
+        case .sublime: openURL(URL(string: "subl://open?url=file://\(path)&line=\(line)")!)
+        case .nova: openInEditor(url, editor: editor)
+        }
+    }
+
     static func openInEditor(_ url: URL, editor: EditorApp = Preferences.editor) {
         let configuration = NSWorkspace.OpenConfiguration()
         if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID(editor)) {
@@ -50,11 +63,13 @@ enum Launcher {
     }
 
     /// Starts an interactive Claude Code session in `directory`, optionally seeded with a prompt.
-    static func launchClaude(in directory: URL, prompt: String? = nil) {
+    /// With `continuing`, picks up the most recent conversation there (`claude --continue`).
+    static func launchClaude(in directory: URL, prompt: String? = nil, continuing: Bool = false) {
         let executable = ClaudeCode.locateCLI(override: Preferences.claudePath) ?? "claude"
         var command = shellQuote(executable)
         let extra = Preferences.claudeArguments.trimmingCharacters(in: .whitespaces)
         if !extra.isEmpty { command += " " + extra }
+        if continuing { command += " --continue" }
         if let prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             command += " " + shellQuote(prompt)
         }

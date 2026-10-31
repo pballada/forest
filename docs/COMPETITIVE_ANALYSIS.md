@@ -59,14 +59,17 @@ and keyboard-first, but spartan, with no worktree support.
   highlights, commit/amend/commit & push, branches, remotes, tags, stashes, merge/rebase/cherry-pick/revert/reset,
   conflict resolution (ours/theirs/mark resolved), a ⌘K command palette, and full keyboard shortcuts.
 
-## Next up
+## Second pass: what we borrowed (0.2)
 
-- Interactive rebase (reorder / squash / fixup / reword by drag and drop)
-- Blame and file history views
-- Side-by-side diff and syntax highlighting
-- Agent review mode: a combined diff of everything an agent changed against its base
-- Commit message generation through Claude
-- GitHub/GitLab PR status on branches and worktree cards
+- **Kaleidoscope** (diff tool): side-by-side and unified views, word-level highlights, hatched fillers where one side
+  has nothing, image comparison with a swipe, next/previous change navigation. Forest's diff canvas follows that
+  model and adds partial staging and a summary for `project.pbxproj`, which no diff tool reads for meaning.
+- **GitKraken**: the Undo button and drag-a-branch-onto-a-branch to merge or rebase; PR status next to branches.
+  Forest's undo uses `reset --keep` and file backups so it never overwrites uncommitted work.
+- **GitButler**: the operations log (everything is reversible) and AI commit messages. Forest gets messages from
+  the user's own Claude Code login with tools disabled, and leaves out lockfiles and huge files.
+
+See [ROADMAP.md](ROADMAP.md) for what's next.
 
 ## Sources
 

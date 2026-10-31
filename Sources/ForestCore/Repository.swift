@@ -130,28 +130,118 @@ public struct Repository: Sendable, Hashable, Identifiable {
         return NameStatusParser.parse(nameStatus: try await names.stdout, numstat: try? await numstat.stdout)
     }
 
-    public func diff(of change: FileChange, in sha: String, parent: String?, context: Int = 3) async throws -> FileDiff? {
+    public func diff(of change: FileChange, in sha: String, parent: String?, options: DiffOptions = DiffOptions()) async throws -> FileDiff? {
         let base = try await parentOrEmptyTree(parent)
+        return try await diff(of: change, from: base, to: sha, options: options)
+    }
+
+    /// Diff of one file between two revisions, or between `base` and the working tree when `target` is nil.
+    public func diff(of change: FileChange, from base: String, to target: String?, options: DiffOptions = DiffOptions()) async throws -> FileDiff? {
         var paths = [change.path]
         if let original = change.originalPath { paths.insert(original, at: 0) }
-        let output = try await git.run(["diff", "--no-ext-diff", "-M", "-U\(context)", base, sha, "--"] + paths).output
+        let revisions = [base] + (target.map { [$0] } ?? [])
+        let output = try await git.run(["diff", "--no-ext-diff", "-M"] + options.arguments + revisions + ["--"] + paths).output
         return DiffParser.parse(output).first
     }
 
+    /// Files that differ between `base` and `target` (the working tree when nil), with line counts.
+    public func changedFiles(from base: String, to target: String?) async throws -> [FileChange] {
+        let revisions = [base] + (target.map { [$0] } ?? [])
+        async let names = git.run(["diff", "--name-status", "-z", "-M"] + revisions)
+        async let numstat = git.run(["diff", "--numstat", "-z", "-M"] + revisions)
+        return NameStatusParser.parse(nameStatus: try await names.stdout, numstat: try? await numstat.stdout)
+    }
+
+    public func mergeBase(_ a: String, _ b: String) async throws -> String {
+        try await git.run(["merge-base", a, b]).trimmed
+    }
+
     /// Diff of a working-copy change: staged (HEAD→index), unstaged (index→worktree) or untracked.
-    public func diff(of change: FileChange, context: Int = 3) async throws -> FileDiff? {
+    public func diff(of change: FileChange, options: DiffOptions = DiffOptions()) async throws -> FileDiff? {
         let output: String
         if change.status == .untracked {
-            output = try await git.run(["diff", "--no-ext-diff", "--no-index", "-U\(context)", "--", "/dev/null", change.path],
+            output = try await git.run(["diff", "--no-ext-diff", "--no-index"] + options.arguments + ["--", "/dev/null", change.path],
                                        allowedExitCodes: [0, 1]).output
         } else if change.staged {
             var paths = [change.path]
             if let original = change.originalPath { paths.insert(original, at: 0) }
-            output = try await git.run(["diff", "--no-ext-diff", "--cached", "-M", "-U\(context)", "--"] + paths).output
+            output = try await git.run(["diff", "--no-ext-diff", "--cached", "-M"] + options.arguments + ["--"] + paths).output
         } else {
-            output = try await git.run(["diff", "--no-ext-diff", "-U\(context)", "--", change.path]).output
+            output = try await git.run(["diff", "--no-ext-diff"] + options.arguments + ["--", change.path]).output
         }
         return DiffParser.parse(output).first
+    }
+
+    /// Line counts for working-copy changes, keyed by `FileChange.id`.
+    public func workingCopyLineCounts() async -> [String: (Int, Int)] {
+        async let unstaged = git.run(["diff", "--numstat", "-z"])
+        async let staged = git.run(["diff", "--numstat", "-z", "--cached", "-M"])
+        var result: [String: (Int, Int)] = [:]
+        if let data = try? await unstaged.stdout {
+            for (path, counts) in NameStatusParser.parseNumstat(data) { result["W:" + path] = counts }
+        }
+        if let data = try? await staged.stdout {
+            for (path, counts) in NameStatusParser.parseNumstat(data) { result["S:" + path] = counts }
+        }
+        return result
+    }
+
+    /// Raw contents of a blob such as `HEAD:path` or `:path` (the index), nil when it doesn't exist.
+    public func blob(_ spec: String) async -> Data? {
+        try? await git.run(["cat-file", "blob", spec]).stdout
+    }
+
+    /// The staged patch, trimmed for a language model: generated files and huge hunks are reduced to their stats.
+    public func stagedPatchForReview(maxCharacters: Int = 60_000) async throws -> String {
+        let stat = try await git.run(["diff", "--cached", "--stat=120"]).output
+        let patch = try await git.run(["diff", "--cached", "--no-ext-diff", "-M", "-U2"]).output
+        return Self.condense(stat: stat, patch: patch, maxCharacters: maxCharacters)
+    }
+
+    /// Everything a branch (plus its uncommitted work, when `includeWorkingTree`) changes relative to `base`.
+    public func patchForReview(from base: String, includeWorkingTree: Bool, maxCharacters: Int = 80_000) async throws -> String {
+        let revisions = includeWorkingTree ? [base] : [base, "HEAD"]
+        let stat = try await git.run(["diff", "--stat=120"] + revisions).output
+        let patch = try await git.run(["diff", "--no-ext-diff", "-M", "-U3"] + revisions).output
+        return Self.condense(stat: stat, patch: patch, maxCharacters: maxCharacters)
+    }
+
+    /// A commit's message and patch, condensed for a language model.
+    public func commitPatchForReview(_ sha: String, parent: String?, maxCharacters: Int = 60_000) async throws -> String {
+        let base = try await parentOrEmptyTree(parent)
+        let message = try await commitMessage(sha)
+        let stat = try await git.run(["diff", "--stat=120", base, sha]).output
+        let patch = try await git.run(["diff", "--no-ext-diff", "-M", "-U3", base, sha]).output
+        return "Commit message:\n\(message)\n\n" + Self.condense(stat: stat, patch: patch, maxCharacters: maxCharacters)
+    }
+
+    static func condense(stat: String, patch: String, maxCharacters: Int) -> String {
+        var kept: [String] = []
+        var omitted: [String] = []
+        for file in DiffParser.parse(patch) {
+            let insights = DiffInsights.analyze(file)
+            if insights.isGenerated || file.isBinary || file.additions + file.deletions > 1500 {
+                omitted.append(file.path)
+                continue
+            }
+            var text = file.headerLines.joined(separator: "\n")
+            for hunk in file.hunks {
+                text += "\n" + hunk.header + "\n" + hunk.lines.map { line in
+                    switch line.kind {
+                    case .addition: "+" + line.text
+                    case .deletion: "-" + line.text
+                    case .context: " " + line.text
+                    case .noNewline: line.text
+                    }
+                }.joined(separator: "\n")
+            }
+            kept.append(text)
+        }
+        var body = kept.joined(separator: "\n")
+        if body.count > maxCharacters { body = String(body.prefix(maxCharacters)) + "\n[… diff truncated …]" }
+        var result = "Summary of changes:\n" + stat + "\n"
+        if !omitted.isEmpty { result += "Changed but not shown (generated, binary or very large): " + omitted.joined(separator: ", ") + "\n" }
+        return result + "\n" + body
     }
 
     public func lastCommitMessage() async throws -> String {
@@ -213,7 +303,10 @@ public struct Repository: Sendable, Hashable, Identifiable {
     }
 
     /// Discards working-copy changes. Untracked files are moved to the Trash, never deleted.
-    public func discard(_ changes: [FileChange]) async throws {
+    /// Returns a backup that `restore(_:)` can put back.
+    @discardableResult
+    public func discard(_ changes: [FileChange]) async throws -> WorkingCopyBackup {
+        let backup = WorkingCopyBackup(capturing: changes.map(\.path), in: root)
         let untracked = changes.filter { $0.status == .untracked }
         let tracked = changes.filter { $0.status != .untracked }.map(\.path)
         for change in untracked {
@@ -222,6 +315,12 @@ public struct Repository: Sendable, Hashable, Identifiable {
         if !tracked.isEmpty {
             try await git.run(["restore", "--worktree", "--"] + tracked)
         }
+        return backup
+    }
+
+    /// Writes backed-up file contents back into the working tree.
+    public func restore(_ backup: WorkingCopyBackup) throws {
+        try backup.restore(in: root)
     }
 
     /// Applies a patch built by `PatchBuilder` to the index (staging) or the working copy (discarding).
@@ -291,6 +390,15 @@ public struct Repository: Sendable, Hashable, Identifiable {
 
     public func setUpstream(_ branch: String, upstream: String) async throws {
         try await git.run(["branch", "--set-upstream-to=\(upstream)", branch])
+    }
+
+    /// Moves the current branch back to `revision`, keeping uncommitted changes (`reset --keep`).
+    public func rewind(to revision: String) async throws {
+        try await git.run(["reset", "--keep", revision])
+    }
+
+    public func headSHA() async -> String? {
+        try? await git.run(["rev-parse", "--verify", "--quiet", "HEAD"]).trimmed
     }
 
     public func merge(_ revision: String, noFastForward: Bool = false, squash: Bool = false) async throws {
@@ -479,3 +587,47 @@ public struct Repository: Sendable, Hashable, Identifiable {
 }
 
 public enum ConflictSide: Sendable { case ours, theirs }
+
+public struct DiffOptions: Sendable, Hashable {
+    public var context: Int
+    public var ignoreWhitespace: Bool
+
+    public init(context: Int = 3, ignoreWhitespace: Bool = false) {
+        self.context = context
+        self.ignoreWhitespace = ignoreWhitespace
+    }
+
+    /// Enough context to show the whole file.
+    public static let fullFileContext = 1_000_000
+
+    var arguments: [String] {
+        ["-U\(context)"] + (ignoreWhitespace ? ["-w"] : [])
+    }
+}
+
+/// File contents captured before a destructive change, so it can be undone.
+public struct WorkingCopyBackup: Sendable {
+    /// Path → contents; nil means the file didn't exist.
+    public let files: [String: Data?]
+
+    public init(capturing paths: [String], in root: URL) {
+        var files: [String: Data?] = [:]
+        for path in paths {
+            files[path] = try? Data(contentsOf: root.appendingPathComponent(path))
+        }
+        self.files = files
+    }
+
+    func restore(in root: URL) throws {
+        let fm = FileManager.default
+        for (path, data) in files {
+            let url = root.appendingPathComponent(path)
+            if let data {
+                try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try data.write(to: url, options: .atomic)
+            } else if fm.fileExists(atPath: url.path) {
+                try fm.removeItem(at: url)
+            }
+        }
+    }
+}

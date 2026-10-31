@@ -1,5 +1,6 @@
 import ForestCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SidebarView: View {
     @Bindable var store: RepoStore
@@ -11,9 +12,9 @@ struct SidebarView: View {
         List(selection: Binding<SidebarItem?>(get: { store.sidebar }, set: { if let item = $0 { select(item) } })) {
             Section {
                 workspaceRow(.changes, title: "Changes", systemImage: "pencil.and.list.clipboard", count: store.status.changeCount, color: .orange)
-                workspaceRow(.history, title: "History", systemImage: "clock.arrow.circlepath", count: 0, color: .accentColor)
-                workspaceRow(.worktrees, title: "Worktrees", systemImage: "square.stack.3d.up", count: store.worktrees.count > 1 ? store.worktrees.count : 0,
-                             color: .secondary, accessory: store.activeAgents > 0 ? AnyView(PulsingDot(color: Theme.claude)) : nil)
+                workspaceRow(.history, title: "History", systemImage: "clock.arrow.circlepath", count: 0, color: Theme.leaf)
+                workspaceRow(.worktrees, title: "Worktrees", systemImage: "square.stack.3d.up.fill", count: store.worktrees.count > 1 ? store.worktrees.count : 0,
+                             color: .teal, accessory: store.activeAgents > 0 ? AnyView(PulsingDot(color: Theme.claude)) : nil)
             } header: {
                 Text("Workspace")
             }
@@ -29,9 +30,15 @@ struct SidebarView: View {
 
             Section("Branches") {
                 ForEach(filtered(store.localBranches)) { branch in
-                    BranchRow(branch: branch)
+                    BranchRow(branch: branch, pullRequest: store.pullRequest(for: branch.name))
                         .tag(SidebarItem.branch(branch.fullName))
                         .contextMenu { BranchMenuItems(store: store, branch: branch) }
+                        .draggable(BranchDrag(name: branch.name))
+                        .dropDestination(for: BranchDrag.self) { items, _ in
+                            guard let dragged = items.first?.name, dragged != branch.name else { return false }
+                            dropped(dragged, on: branch)
+                            return true
+                        }
                 }
             }
 
@@ -128,10 +135,26 @@ struct SidebarView: View {
         }
     }
 
+    /// Drag a branch onto the current one to merge it in; drag the current branch onto another to rebase.
+    private func dropped(_ dragged: String, on target: Branch) {
+        if target.isHead {
+            store.merge(dragged)
+        } else if dragged == store.status.branch {
+            store.rebase(onto: target.name)
+        } else {
+            store.alert = AlertMessage(title: "Drop onto the current branch",
+                                       message: "Drag a branch onto “\(store.status.branch ?? "HEAD")” to merge it, or drag “\(store.status.branch ?? "HEAD")” onto another branch to rebase onto it.")
+        }
+    }
+
     private func workspaceRow(_ item: SidebarItem, title: String, systemImage: String, count: Int, color: Color,
                               accessory: AnyView? = nil) -> some View {
         HStack {
-            Label(title, systemImage: systemImage)
+            Label {
+                Text(title)
+            } icon: {
+                Image(systemName: systemImage).foregroundStyle(color)
+            }
             Spacer()
             accessory
             if count > 0 {
@@ -172,6 +195,7 @@ struct SidebarView: View {
 
 private struct BranchRow: View {
     let branch: Branch
+    var pullRequest: PullRequest?
 
     var body: some View {
         HStack(spacing: 6) {
@@ -182,9 +206,12 @@ private struct BranchRow: View {
                     .truncationMode(.middle)
             } icon: {
                 Image(systemName: branch.isHead ? "checkmark.circle.fill" : "arrow.triangle.branch")
-                    .foregroundStyle(branch.isHead ? Color.accentColor : .secondary)
+                    .foregroundStyle(branch.isHead ? Theme.leaf : .secondary)
             }
             Spacer(minLength: 4)
+            if let pullRequest {
+                PullRequestChip(pullRequest: pullRequest).scaleEffect(0.9)
+            }
             if branch.worktreePath != nil && !branch.isHead {
                 Image(systemName: ClaudeCode.isClaudeWorktree(path: branch.worktreePath ?? "") ? "sparkles" : "square.stack.3d.up")
                     .font(.caption2)
@@ -206,7 +233,7 @@ struct AheadBehind: View {
     var body: some View {
         HStack(spacing: 4) {
             if ahead > 0 {
-                Text("↑\(ahead)").foregroundStyle(Color.accentColor)
+                Text("↑\(ahead)").foregroundStyle(Theme.leaf)
             }
             if behind > 0 {
                 Text("↓\(behind)").foregroundStyle(.orange)
@@ -263,9 +290,16 @@ struct BranchMenuItems: View {
             Button("Rebase “\(current)” onto This…") { store.rebase(onto: branch.name) }
             Divider()
         }
+        Button(store.historyScope == branch.name ? "Show All Branches" : "Show Only This Branch") {
+            store.solo(store.historyScope == branch.name ? nil : branch.name)
+        }
+        Divider()
         Button("New Branch from Here…") { store.sheet = .newBranch(start: branch.name) }
         Button("New Worktree from Here…") { store.sheet = .newWorktree(base: branch.name, claude: false) }
         Button("New Claude Agent from Here…") { store.sheet = .newWorktree(base: branch.name, claude: true) }
+        if let pr = store.pullRequest(for: branch.nameWithoutRemote) {
+            Button("Open Pull Request #\(pr.number)") { Launcher.openURL(pr.url) }
+        }
         if let path = branch.worktreePath, !branch.isHead {
             Button("Open Worktree") { WindowOpener.open(URL(fileURLWithPath: path)) }
         }
@@ -280,6 +314,18 @@ struct BranchMenuItems: View {
             Button("Delete…", role: .destructive) { store.delete(branch) }
         }
     }
+}
+
+/// Drag payload for branch-onto-branch merge and rebase.
+struct BranchDrag: Codable, Transferable {
+    let name: String
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .forestBranch)
+    }
+}
+
+extension UTType {
+    static let forestBranch = UTType(exportedAs: "com.pballada.forest.branch")
 }
 
 func copy(_ string: String) {

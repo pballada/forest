@@ -22,6 +22,12 @@ enum SettingsKey {
     static let claudeBranchPrefix = "claudeBranchPrefix"
     static let worktreeLocation = "worktreeLocation"
     static let recentRepositories = "recentRepositories"
+    static let claudeModel = "claudeModel"
+    static let aiFeatures = "aiFeatures"
+    static let diffFullFile = "diff.fullFile"
+    static let diffIgnoreWhitespace = "diff.ignoreWhitespace"
+    static let celebrate = "celebrate"
+    static let pullRequests = "pullRequests"
 }
 
 enum Preferences {
@@ -40,6 +46,15 @@ enum Preferences {
     static var claudeArguments: String { defaults.string(forKey: SettingsKey.claudeArguments) ?? "" }
     static var claudeBranchPrefix: String {
         defaults.string(forKey: SettingsKey.claudeBranchPrefix) ?? ClaudeCode.defaultBranchPrefix
+    }
+    /// Model alias for quick headless tasks (commit messages, explanations); empty uses Claude Code's default.
+    static var claudeModel: String { defaults.string(forKey: SettingsKey.claudeModel) ?? "" }
+    static var aiFeatures: Bool { defaults.object(forKey: SettingsKey.aiFeatures) as? Bool ?? true }
+    static var celebrate: Bool { defaults.object(forKey: SettingsKey.celebrate) as? Bool ?? true }
+    static var pullRequests: Bool { defaults.object(forKey: SettingsKey.pullRequests) as? Bool ?? true }
+    static var diffOptions: DiffOptions {
+        DiffOptions(context: defaults.bool(forKey: SettingsKey.diffFullFile) ? DiffOptions.fullFileContext : 3,
+                    ignoreWhitespace: defaults.bool(forKey: SettingsKey.diffIgnoreWhitespace))
     }
     /// "sibling" puts native worktrees next to the repo (`../repo-branch`), "nested" inside `.worktrees/`.
     static var worktreeLocation: String { defaults.string(forKey: SettingsKey.worktreeLocation) ?? "sibling" }

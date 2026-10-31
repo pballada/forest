@@ -12,7 +12,7 @@ struct WorktreesView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 26) {
                     header
-                    WorktreeSection(title: "Main", systemImage: "house", store: store, worktrees: main)
+                    WorktreeSection(title: "Main", systemImage: "house", store: store, worktrees: main, tint: Theme.leaf)
                     WorktreeSection(title: "Claude Agents", systemImage: "sparkles", store: store, worktrees: agents, tint: Theme.claude) {
                         AgentEmptyCard(store: store)
                     }
@@ -27,7 +27,7 @@ struct WorktreesView: View {
             .onChange(of: store.sidebar) { _, _ in scroll(proxy) }
         }
         .background(
-            LinearGradient(colors: [Theme.claude.opacity(0.05), Color.clear], startPoint: .top, endPoint: .center)
+            LinearGradient(colors: [Theme.leaf.opacity(0.07), Theme.claude.opacity(0.03), Color.clear], startPoint: .top, endPoint: .center)
         )
         .task {
             await store.refreshWorktreeStatuses()
@@ -68,6 +68,7 @@ struct WorktreesView: View {
             Button { store.pruneWorktrees() } label: { Label("Prune", systemImage: "scissors") }
                 .help("Remove records of worktrees whose folders were deleted")
             Button { store.sheet = .newWorktree(base: nil, claude: false) } label: { Label("New Worktree", systemImage: "plus") }
+                .tint(Theme.leaf)
             Button { store.sheet = .newWorktree(base: nil, claude: true) } label: {
                 Label("New Claude Agent", systemImage: "sparkles")
                     .padding(.horizontal, 4)
@@ -204,8 +205,8 @@ struct WorktreeCard: View {
     }
 
     private var borderColor: Color {
-        if highlighted { return .accentColor }
-        if isCurrent { return worktree.isClaude ? Theme.claude.opacity(0.7) : Color.accentColor.opacity(0.6) }
+        if highlighted { return Theme.leaf }
+        if isCurrent { return worktree.isClaude ? Theme.claude.opacity(0.7) : Theme.leaf.opacity(0.6) }
         return Color.primary.opacity(0.09)
     }
 
@@ -227,7 +228,8 @@ struct WorktreeCard: View {
                 .foregroundStyle(.secondary)
             }
             Spacer(minLength: 6)
-            if isCurrent { Chip(text: "This window", color: .accentColor) }
+            if let pr = store.pullRequest(for: worktree.branch) { PullRequestChip(pullRequest: pr) }
+            if isCurrent { Chip(text: "This window", color: Theme.leaf) }
             if worktree.isLocked { Chip(text: "Locked", systemImage: "lock.fill") .help(worktree.lockReason ?? "") }
             if status?.missing == true || worktree.isPrunable { Chip(text: "Missing", systemImage: "exclamationmark.triangle.fill", color: .orange) }
         }
@@ -241,7 +243,7 @@ struct WorktreeCard: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 32, height: 32)
-                .background(Circle().fill(worktree.isMain ? AnyShapeStyle(Theme.forestGradient) : AnyShapeStyle(Color.accentColor.gradient)))
+                .background(Circle().fill(worktree.isMain ? AnyShapeStyle(Theme.leafGradient) : AnyShapeStyle(Theme.forestGradient)))
         }
     }
 
@@ -274,7 +276,7 @@ struct WorktreeCard: View {
                         Button { Launcher.openURL(pr) } label: {
                             Label("PR #\(pr.lastPathComponent)", systemImage: "arrow.triangle.pull")
                         }
-                        .buttonStyle(.link)
+                        .buttonStyle(.plain).foregroundStyle(Theme.leaf)
                     }
                 }
                 .font(.system(size: 11.5, weight: .medium))
@@ -323,6 +325,12 @@ struct WorktreeCard: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
             }
+            if !worktree.isMain, worktree.branch != nil, worktree.branch != store.mainWorktree?.branch {
+                Button { store.sheet = .review(worktree) } label: { Label("Review", systemImage: "eye") }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("See everything this worktree changed, ask Claude for a review, and send feedback")
+            }
             HoverButton(systemImage: "terminal", help: "Open in \(Preferences.terminal.rawValue)") { Launcher.openTerminal(at: worktree.url) }
             HoverButton(systemImage: "chevron.left.forwardslash.chevron.right", help: "Open in \(Preferences.editor.rawValue)") { Launcher.openInEditor(worktree.url) }
             HoverButton(systemImage: "folder", help: "Reveal in Finder") { Launcher.revealInFinder(worktree.url) }
@@ -334,13 +342,13 @@ struct WorktreeCard: View {
                 .truncationMode(.head)
                 .frame(maxWidth: 160, alignment: .trailing)
                 .help(worktree.path)
-            Button { Launcher.launchClaude(in: worktree.url) } label: {
-                Label(session == nil ? "Launch Claude" : "Resume", systemImage: "sparkles")
+            Button { Launcher.launchClaude(in: worktree.url, continuing: session != nil) } label: {
+                Label(session == nil ? "Launch Claude" : "Continue", systemImage: "sparkles")
             }
             .buttonStyle(.borderedProminent)
             .tint(Theme.claude)
             .controlSize(.small)
-            .help(session == nil ? "Start Claude Code in this worktree" : "Start a new Claude Code session here (use /resume to continue one)")
+            .help(session == nil ? "Start Claude Code in this worktree" : "Continue the most recent Claude Code conversation here")
             Menu {
                 WorktreeMenuItems(store: store, worktree: worktree)
             } label: {
@@ -367,11 +375,17 @@ struct WorktreeMenuItems: View {
         Button("Open in \(Preferences.editor.rawValue)") { Launcher.openInEditor(worktree.url) }
         Button("Reveal in Finder") { Launcher.revealInFinder(worktree.url) }
         Button("Launch Claude Code") { Launcher.launchClaude(in: worktree.url) }
+        if store.claudeSessions[worktree.path] != nil {
+            Button("Continue Claude Session") { Launcher.launchClaude(in: worktree.url, continuing: true) }
+        }
         Button("Copy Path") { copy(worktree.path) }
         if !worktree.isMain, let branch = worktree.branch {
             Divider()
             if let target = store.mainWorktree?.branch, target != branch {
                 Button("Merge “\(branch)” into “\(target)”…") { store.mergeIntoMain(worktree) }
+            }
+            if branch != store.mainWorktree?.branch {
+                Button("Review Changes…") { store.sheet = .review(worktree) }
             }
             Button("Push & Open Pull Request") { store.pushAndOpenPullRequest(worktree) }
             Button("Show Branch in History") {

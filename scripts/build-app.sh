@@ -21,6 +21,12 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Forest"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
+# Compile the asset catalog so the system accent (selection, focus rings, default buttons) is Forest green.
+ASSETS_TMP="$(mktemp -d)"
+xcrun actool Resources/Assets.xcassets --compile "$APP/Contents/Resources" --platform macosx \
+  --minimum-deployment-target 14.0 --output-partial-info-plist "$ASSETS_TMP/assets.plist" >/dev/null
+rm -rf "$ASSETS_TMP"
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -38,6 +44,15 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+  <key>NSAccentColorName</key><string>AccentColor</string>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key><string>com.pballada.forest.branch</string>
+      <key>UTTypeDescription</key><string>Forest branch</string>
+      <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+    </dict>
+  </array>
   <key>NSAppleEventsUsageDescription</key><string>Forest opens worktrees and Claude Code sessions in your terminal.</string>
   <key>CFBundleDocumentTypes</key>
   <array>

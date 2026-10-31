@@ -19,7 +19,7 @@ struct WelcomeView: View {
         .overlay {
             if dropTargeted {
                 RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(Color.accentColor, style: StrokeStyle(lineWidth: 3, dash: [8, 6]))
+                    .strokeBorder(Theme.leaf, style: StrokeStyle(lineWidth: 3, dash: [8, 6]))
                     .padding(8)
             }
         }
@@ -40,34 +40,47 @@ struct WelcomeView: View {
         VStack(spacing: 18) {
             Spacer()
             AppGlyph(size: 108)
-            VStack(spacing: 4) {
+            VStack(spacing: 6) {
                 Text("Forest")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
-                Text("Git, beautifully. Worktrees & agents, natively.")
+                Text(greeting)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.leaf)
+                Text("Git that grows with you. Worktrees and Claude agents, side by side.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             VStack(spacing: 8) {
-                WelcomeAction(title: "Open Repository…", systemImage: "folder", shortcut: "⌘O") { WindowOpener.showOpenPanel() }
-                WelcomeAction(title: "Clone Repository…", systemImage: "arrow.down.circle", shortcut: "⇧⌘O") { showClone = true }
-                WelcomeAction(title: "New Repository…", systemImage: "plus.square.dashed", shortcut: "") { createRepository() }
+                WelcomeAction(title: "Open Repository…", systemImage: "folder.fill", shortcut: "⌘O") { WindowOpener.showOpenPanel() }
+                WelcomeAction(title: "Clone Repository…", systemImage: "arrow.down.circle.fill", shortcut: "⇧⌘O") { showClone = true }
+                WelcomeAction(title: "New Repository…", systemImage: "leaf.fill", shortcut: "") { createRepository() }
             }
             .padding(.top, 8)
             Spacer()
-            Text("Drop a folder anywhere to open it")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.bottom, 18)
+            TipView()
+                .padding(.bottom, 64)
         }
         .padding(.horizontal, 28)
         .frame(maxHeight: .infinity)
         .background(
-            ZStack {
-                Theme.forestGradient.opacity(0.10)
-                RadialGradient(colors: [Color.green.opacity(0.18), .clear], center: .top, startRadius: 10, endRadius: 320)
+            ZStack(alignment: .bottom) {
+                LinearGradient(colors: [Theme.leaf.opacity(0.16), Theme.sky.opacity(0.06), Theme.sun.opacity(0.05)],
+                               startPoint: .top, endPoint: .bottom)
+                RadialGradient(colors: [Theme.leaf.opacity(0.22), .clear], center: .top, startRadius: 10, endRadius: 320)
+                TreeLine()
             }
         )
+    }
+
+    private var greeting: String {
+        switch Calendar.current.component(.hour, from: .now) {
+        case 5..<12: "Good morning"
+        case 12..<18: "Good afternoon"
+        case 18..<23: "Good evening"
+        default: "Working late? Happy hacking"
+        }
     }
 
     private var recentList: some View {
@@ -123,7 +136,7 @@ private struct WelcomeAction: View {
             HStack {
                 Image(systemName: systemImage)
                     .frame(width: 20)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Theme.leaf)
                 Text(title)
                 Spacer()
                 Text(shortcut).foregroundStyle(.tertiary).font(.caption)
@@ -150,7 +163,7 @@ private struct RecentRow: View {
             HStack(spacing: 10) {
                 Image(systemName: ClaudeCode.isClaudeWorktree(path: path) ? "sparkles" : "folder.fill")
                     .font(.system(size: 15))
-                    .foregroundStyle(ClaudeCode.isClaudeWorktree(path: path) ? Theme.claude : Color.accentColor)
+                    .foregroundStyle(ClaudeCode.isClaudeWorktree(path: path) ? Theme.claude : Theme.leaf)
                     .frame(width: 26)
                 VStack(alignment: .leading, spacing: 1) {
                     Text((path as NSString).lastPathComponent)
@@ -182,13 +195,69 @@ private struct RecentRow: View {
     }
 }
 
+/// A soft horizon of trees along the bottom of the welcome hero.
+private struct TreeLine: View {
+    private let trees: [(CGFloat, CGFloat, Double)] = [
+        (0.04, 34, 0.10), (0.13, 52, 0.14), (0.22, 30, 0.09), (0.31, 44, 0.12), (0.42, 60, 0.15), (0.53, 36, 0.10),
+        (0.63, 48, 0.13), (0.73, 28, 0.08), (0.82, 56, 0.14), (0.92, 38, 0.10),
+    ]
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .bottomLeading) {
+                ForEach(Array(trees.enumerated()), id: \.offset) { _, tree in
+                    Image(systemName: "tree.fill")
+                        .font(.system(size: tree.1))
+                        .foregroundStyle(Theme.leaf.opacity(tree.2))
+                        .position(x: geometry.size.width * tree.0, y: geometry.size.height - tree.1 / 2 + 2)
+                }
+            }
+        }
+        .frame(height: 70)
+        .allowsHitTesting(false)
+    }
+}
+
+/// One rotating hint about something worth knowing.
+private struct TipView: View {
+    private static let tips = [
+        "Press ⌥⌘N to start a Claude agent in its own worktree.",
+        "Click ✨ in the commit box and Claude writes the message.",
+        "Drag a branch onto the current one to merge it.",
+        "Made a mistake? ⌥⌘Z undoes commits, discards, merges and more.",
+        "Review an agent's work against main before you merge it.",
+        "⌘K opens the command palette from anywhere.",
+        "Select lines in a diff to stage just those lines.",
+    ]
+    @State private var index = Int.random(in: 0..<tips.count)
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "lightbulb.fill").foregroundStyle(Theme.sun)
+            Text(Self.tips[index])
+                .contentTransition(.opacity)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
+        .onTapGesture { withAnimation { index = (index + 1) % Self.tips.count } }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(7))
+                withAnimation(.easeInOut(duration: 0.4)) { index = (index + 1) % Self.tips.count }
+            }
+        }
+        .help("Click for another tip")
+    }
+}
+
 /// The Forest mark: three stacked trees on a green squircle.
 struct AppGlyph: View {
     var size: CGFloat
 
     var body: some View {
         RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
-            .fill(Theme.forestGradient)
+            .fill(Theme.leafGradient)
             .overlay(
                 RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
                     .fill(LinearGradient(colors: [.white.opacity(0.28), .clear], startPoint: .top, endPoint: .center))
@@ -200,7 +269,7 @@ struct AppGlyph: View {
                     .shadow(color: .black.opacity(0.2), radius: size * 0.03, y: size * 0.02)
             )
             .frame(width: size, height: size)
-            .shadow(color: Color.green.opacity(0.35), radius: size * 0.15, y: size * 0.06)
+            .shadow(color: Theme.leaf.opacity(0.4), radius: size * 0.15, y: size * 0.06)
     }
 }
 

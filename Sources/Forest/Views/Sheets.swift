@@ -5,7 +5,7 @@ import SwiftUI
 struct SheetScaffold<Content: View>: View {
     let title: String
     let systemImage: String
-    var tint: Color = .accentColor
+    var tint: Color = Theme.leaf
     let actionTitle: String
     let canSubmit: Bool
     let submit: () -> Void
@@ -197,7 +197,7 @@ struct NewWorktreeSheet: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: 30, height: 30)
-                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.accentColor.gradient))
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.leaf.gradient))
                 }
                 Text(claude ? "New Claude Agent" : "New Worktree").font(.title3.weight(.semibold))
                 Spacer()
@@ -222,7 +222,7 @@ struct NewWorktreeSheet: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
-                .tint(claude ? Theme.claude : .accentColor)
+                .tint(claude ? Theme.claude : Theme.leaf)
                 .disabled(!canSubmit)
             }
         }

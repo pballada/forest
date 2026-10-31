@@ -9,11 +9,19 @@ struct CommitDetailView: View {
             HSplitView {
                 VStack(spacing: 0) {
                     CommitHeader(store: store, commit: commit, body: store.commitBody)
+                    if let note = store.commitExplanation {
+                        ClaudeNoteView(note: note) { store.commitExplanation = nil }
+                            .frame(maxHeight: 260)
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 12)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                     Divider()
                     CommitFileList(store: store)
                 }
                 .frame(minWidth: 280, idealWidth: 380, maxWidth: 560)
-                DiffView(diff: store.commitDiff, mode: .readOnly, store: store)
+                DiffView(diff: store.commitDiff, mode: .readOnly, store: store,
+                         images: store.selectedCommitFile.map { store.imagePair(commit: commit.sha, parent: commit.parents.first, file: $0) })
                     .frame(minWidth: 360)
             }
         } else {
@@ -76,6 +84,16 @@ struct CommitHeader: View {
                 Spacer()
                 if commit.committerName != commit.authorName {
                     Text("committed by \(commit.committerName)").font(.caption).foregroundStyle(.tertiary)
+                }
+                if Preferences.aiFeatures {
+                    Button { withAnimation(.snappy) { store.explain(commit) } } label: {
+                        Label("Explain", systemImage: "sparkles")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(Theme.claude)
+                    .disabled(store.commitExplanation?.loading == true)
+                    .help("Ask Claude what this commit does and what to watch out for")
                 }
             }
         }
@@ -177,7 +195,7 @@ struct StashDetailView: View {
         VStack(spacing: 0) {
             if let stash = store.stashes.first(where: { $0.sha == sha }) {
                 HStack {
-                    Image(systemName: "tray.full.fill").foregroundStyle(Color.accentColor)
+                    Image(systemName: "tray.full.fill").foregroundStyle(Theme.leaf)
                     VStack(alignment: .leading) {
                         Text(stash.message).font(.headline)
                         Text("\(stash.ref) · \(Format.ago(stash.date))").font(.caption).foregroundStyle(.secondary)
@@ -191,7 +209,9 @@ struct StashDetailView: View {
                 Divider()
                 HSplitView {
                     CommitFileList(store: store).frame(minWidth: 260, idealWidth: 340)
-                    DiffView(diff: store.commitDiff, mode: .readOnly, store: store).frame(minWidth: 360)
+                    DiffView(diff: store.commitDiff, mode: .readOnly, store: store,
+                             images: store.selectedCommitFile.map { store.imagePair(commit: stash.sha, parent: "\(stash.sha)^1", file: $0) })
+                        .frame(minWidth: 360)
                 }
             } else {
                 EmptyState(title: "Stash not found", systemImage: "tray")

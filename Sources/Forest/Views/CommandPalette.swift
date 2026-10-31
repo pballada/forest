@@ -96,6 +96,10 @@ struct CommandPalette: View {
         let root = store.repository.root
         return [
             PaletteItem(id: "claude-agent", title: "New Claude Agent…", subtitle: "Isolated worktree + Claude Code", systemImage: "sparkles", tint: Theme.claude) { store.sheet = .newWorktree(base: nil, claude: true) },
+            PaletteItem(id: "claude-message", title: "Write Commit Message with Claude", subtitle: "\(store.status.staged.count) staged files",
+                        systemImage: "text.badge.star", tint: Theme.claude) { store.sidebar = .changes; store.generateCommitMessage() },
+            PaletteItem(id: "undo", title: store.undo.map { "Undo \($0.title)" } ?? "Undo", subtitle: store.undo == nil ? "Nothing to undo" : "⌥⌘Z",
+                        systemImage: "arrow.uturn.backward") { store.performUndo() },
             PaletteItem(id: "worktree", title: "New Worktree…", subtitle: "Check out another branch side by side", systemImage: "square.stack.3d.up") { store.sheet = .newWorktree(base: nil, claude: false) },
             PaletteItem(id: "fetch", title: "Fetch", subtitle: "All remotes", systemImage: "arrow.triangle.2.circlepath") { store.fetch() },
             PaletteItem(id: "pull", title: "Pull", subtitle: Preferences.pullStrategy.title, systemImage: "arrow.down") { store.pull() },
@@ -118,16 +122,21 @@ struct CommandPalette: View {
     private var branchItems: [PaletteItem] {
         store.localBranches.filter { !$0.isHead }.map { branch in
             PaletteItem(id: "checkout-\(branch.fullName)", title: "Check Out \(branch.name)", subtitle: branch.subject,
-                        systemImage: "arrow.triangle.branch", tint: .accentColor) { store.checkout(branch) }
+                        systemImage: "arrow.triangle.branch", tint: Theme.leaf) { store.checkout(branch) }
         }
     }
 
     private var worktreeItems: [PaletteItem] {
-        store.worktrees.filter { $0.path != store.currentWorktree?.path }.map { worktree in
+        let open = store.worktrees.filter { $0.path != store.currentWorktree?.path }.map { worktree in
             PaletteItem(id: "open-\(worktree.path)", title: "Open Worktree \(worktree.name)", subtitle: worktree.branch ?? "",
                         systemImage: worktree.isClaude ? "sparkles" : "square.stack.3d.up",
                         tint: worktree.isClaude ? Theme.claude : .secondary) { WindowOpener.open(worktree.url) }
         }
+        let review = store.worktrees.filter { !$0.isMain && $0.branch != nil && $0.branch != store.mainWorktree?.branch }.map { worktree in
+            PaletteItem(id: "review-\(worktree.path)", title: "Review \(worktree.name)", subtitle: "Changes vs \(store.mainWorktree?.branch ?? "main")",
+                        systemImage: "eye", tint: worktree.isClaude ? Theme.claude : Theme.leaf) { store.sheet = .review(worktree) }
+        }
+        return open + review
     }
 
     /// Subsequence match; consecutive and word-start matches score higher.
@@ -167,7 +176,7 @@ private struct PaletteRow: View {
         .font(.system(size: 13))
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(highlighted ? Color.accentColor : .clear))
+        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(highlighted ? Theme.leaf : .clear))
         .contentShape(Rectangle())
     }
 }

@@ -26,6 +26,19 @@ struct CommitList: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            if let scope = store.historyScope {
+                HStack(spacing: 8) {
+                    Image(systemName: "scope").foregroundStyle(Theme.leaf)
+                    Text("Showing only ") + Text(scope).fontWeight(.semibold) + Text(" and its ancestors")
+                    Spacer()
+                    Button("Show All Branches") { store.solo(nil) }
+                        .buttonStyle(.plain).foregroundStyle(Theme.leaf)
+                }
+                .font(.system(size: 12))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Theme.leaf.opacity(0.08))
+            }
             Divider()
             if store.commits.isEmpty && store.loaded {
                 EmptyState(title: "No commits yet", systemImage: "clock",
@@ -69,7 +82,7 @@ struct CommitList: View {
                     }
                     if store.canLoadMore && !filtering {
                         Button("Load more history") { Task { await store.loadMoreHistory() } }
-                            .buttonStyle(.link)
+                            .buttonStyle(.plain).foregroundStyle(Theme.leaf)
                             .padding(12)
                     }
                 }
@@ -155,7 +168,7 @@ private struct CommitRow: View {
 
     @ViewBuilder private var background: some View {
         if selected {
-            Color.accentColor
+            Theme.leaf
         } else if hovering {
             Color.primary.opacity(0.045)
         } else {

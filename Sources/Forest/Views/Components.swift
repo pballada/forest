@@ -86,7 +86,7 @@ struct Chip: View {
 
 struct CountBadge: View {
     let count: Int
-    var color: Color = .accentColor
+    var color: Color = Theme.leaf
 
     var body: some View {
         if count > 0 {

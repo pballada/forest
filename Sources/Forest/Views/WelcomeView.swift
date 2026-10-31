@@ -12,6 +12,7 @@ struct WelcomeView: View {
         HStack(spacing: 0) {
             hero
                 .frame(width: 330)
+                .clipped()
             Divider()
             recentList
         }
@@ -195,26 +196,48 @@ private struct RecentRow: View {
     }
 }
 
-/// A soft horizon of trees along the bottom of the welcome hero.
+/// A soft horizon of pines along the bottom of the welcome hero, echoing the app icon.
 private struct TreeLine: View {
     private let trees: [(CGFloat, CGFloat, Double)] = [
-        (0.04, 34, 0.10), (0.13, 52, 0.14), (0.22, 30, 0.09), (0.31, 44, 0.12), (0.42, 60, 0.15), (0.53, 36, 0.10),
-        (0.63, 48, 0.13), (0.73, 28, 0.08), (0.82, 56, 0.14), (0.92, 38, 0.10),
+        (0.03, 46, 0.10), (0.11, 70, 0.15), (0.19, 40, 0.09), (0.28, 58, 0.12), (0.39, 84, 0.17), (0.50, 48, 0.10),
+        (0.60, 66, 0.14), (0.70, 38, 0.08), (0.80, 76, 0.15), (0.91, 52, 0.11), (0.98, 64, 0.13),
     ]
 
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottomLeading) {
                 ForEach(Array(trees.enumerated()), id: \.offset) { _, tree in
-                    Image(systemName: "tree.fill")
-                        .font(.system(size: tree.1))
-                        .foregroundStyle(Theme.leaf.opacity(tree.2))
+                    PineShape()
+                        .fill(Theme.leaf.opacity(tree.2))
+                        .frame(width: tree.1 * 0.56, height: tree.1)
                         .position(x: geometry.size.width * tree.0, y: geometry.size.height - tree.1 / 2 + 2)
                 }
             }
         }
-        .frame(height: 70)
+        .frame(height: 90)
         .allowsHitTesting(false)
+    }
+}
+
+/// A three-tier pine silhouette with a short trunk.
+struct PineShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let trunk = rect.height * 0.1
+        path.addRect(CGRect(x: rect.midX - rect.width * 0.06, y: rect.maxY - trunk, width: rect.width * 0.12, height: trunk))
+        let body = rect.height - trunk
+        for tier in 0..<3 {
+            let t = CGFloat(tier) / 3
+            let base = rect.maxY - trunk - body * t * 0.78
+            let top = rect.maxY - trunk - body * (0.42 + t * 0.58)
+            let half = rect.width / 2 * (1 - t * 0.52)
+            path.move(to: CGPoint(x: rect.midX, y: top))
+            path.addQuadCurve(to: CGPoint(x: rect.midX - half, y: base), control: CGPoint(x: rect.midX - half * 0.35, y: base - (base - top) * 0.35))
+            path.addQuadCurve(to: CGPoint(x: rect.midX + half, y: base), control: CGPoint(x: rect.midX, y: base + rect.height * 0.035))
+            path.addQuadCurve(to: CGPoint(x: rect.midX, y: top), control: CGPoint(x: rect.midX + half * 0.35, y: base - (base - top) * 0.35))
+            path.closeSubpath()
+        }
+        return path
     }
 }
 
@@ -236,6 +259,7 @@ private struct TipView: View {
             Image(systemName: "lightbulb.fill").foregroundStyle(Theme.sun)
             Text(Self.tips[index])
                 .contentTransition(.opacity)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -251,25 +275,32 @@ private struct TipView: View {
     }
 }
 
-/// The Forest mark: three stacked trees on a green squircle.
+/// The Forest mark. Uses the app icon (a little pine landscape) when running from the bundle,
+/// and a tree-on-green fallback under `swift run`.
 struct AppGlyph: View {
     var size: CGFloat
 
+    private static let icon: NSImage? = Bundle.main.url(forResource: "AppIcon", withExtension: "icns").flatMap(NSImage.init(contentsOf:))
+
     var body: some View {
-        RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
-            .fill(Theme.leafGradient)
-            .overlay(
-                RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
-                    .fill(LinearGradient(colors: [.white.opacity(0.28), .clear], startPoint: .top, endPoint: .center))
-            )
-            .overlay(
-                Image(systemName: "tree.fill")
-                    .font(.system(size: size * 0.5, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.2), radius: size * 0.03, y: size * 0.02)
-            )
-            .frame(width: size, height: size)
-            .shadow(color: Theme.leaf.opacity(0.4), radius: size * 0.15, y: size * 0.06)
+        if let icon = Self.icon {
+            // The icon includes the standard transparent margin and its own shadow.
+            Image(nsImage: icon)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: size * 1.24, height: size * 1.24)
+                .frame(width: size, height: size)
+        } else {
+            RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
+                .fill(Theme.leafGradient)
+                .overlay(
+                    Image(systemName: "tree.fill")
+                        .font(.system(size: size * 0.5, weight: .semibold))
+                        .foregroundStyle(.white)
+                )
+                .frame(width: size, height: size)
+                .shadow(color: Theme.leaf.opacity(0.4), radius: size * 0.15, y: size * 0.06)
+        }
     }
 }
 

@@ -26,6 +26,12 @@ struct ForestApp: App {
         .defaultSize(width: 1320, height: 840)
         .windowToolbarStyle(.unified)
 
+        Window("Software Update", id: "update") {
+            UpdateView()
+                .tint(Theme.leaf)
+        }
+        .windowResizability(.contentSize)
+
         Settings {
             SettingsView()
                 .tint(Theme.leaf)
@@ -42,7 +48,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let paths = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-") }
         var isDirectory: ObjCBool = false
         let directories = paths.filter { FileManager.default.fileExists(atPath: $0, isDirectory: &isDirectory) && isDirectory.boolValue }
-        Task { @MainActor in WindowOpener.pending += directories.map { URL(fileURLWithPath: $0) } }
+        Task { @MainActor in
+            WindowOpener.pending += directories.map { URL(fileURLWithPath: $0) }
+            Updater.shared.startAutomaticChecks()
+        }
     }
 
     /// Folders dropped on the Dock icon or opened with "Open With".
@@ -112,6 +121,13 @@ struct ForestCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") {
+                openWindow(id: "update")
+                Task { await Updater.shared.check(userInitiated: true) }
+            }
+        }
+
         CommandGroup(replacing: .newItem) {
             Button("Open Repository…") { WindowOpener.showOpenPanel() }
                 .keyboardShortcut("o")

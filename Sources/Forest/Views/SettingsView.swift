@@ -37,6 +37,7 @@ private struct GeneralSettings: View {
                 Text("Next to the repository (../repo-branch)").tag("sibling")
                 Text("Inside the repository (.worktrees/branch)").tag("nested")
             }
+            UpdateSettings()
             LabeledContent("Git") {
                 Text(GitRunner.defaultExecutable.path).font(Theme.mono).foregroundStyle(.secondary)
             }
@@ -165,6 +166,26 @@ private struct ClaudeSettings: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct UpdateSettings: View {
+    @Environment(\.openWindow) private var openWindow
+    @State private var updater = Updater.shared
+
+    var body: some View {
+        Toggle("Check for updates automatically", isOn: $updater.automaticChecks)
+        LabeledContent("Version \(Updater.currentVersion)") {
+            HStack {
+                if let checked = updater.lastChecked {
+                    Text("Checked \(Format.ago(checked))").foregroundStyle(.secondary)
+                }
+                Button("Check Now") {
+                    openWindow(id: "update")
+                    Task { await updater.check(userInitiated: true) }
+                }
+            }
         }
     }
 }

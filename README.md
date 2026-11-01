@@ -41,6 +41,8 @@ can be undone.
 - Conflict banner with ours/theirs/mark resolved, plus continue/abort
 - Fetch, pull (ff-only, merge or rebase), push with automatic upstream or force-with-lease
 - ⌘K command palette, live refresh through FSEvents, clone/init/open, drag-and-drop folders
+- Themes for diffs: Solarized Dark (default), Solarized Light, Dracula, One Dark, Monokai, Nord, Gruvbox, Tokyo Night, Catppuccin, GitHub Dark and Light
+- Updates itself from GitHub Releases, installing only builds signed by the same developer and notarized by Apple
 
 | Xcode project, side by side | Reviewing an agent |
 |---|---|

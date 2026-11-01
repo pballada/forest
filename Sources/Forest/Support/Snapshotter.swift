@@ -70,6 +70,12 @@ enum Snapshotter {
         try? await Task.sleep(for: .seconds(1))
         if let view = themes.contentView { write(view: view, to: directory.appendingPathComponent("8-themes.png")) }
         themes.close()
+        WindowOpener.openWindow?(id: "update")
+        await Updater.shared.check(userInitiated: true)
+        try? await Task.sleep(for: .seconds(1))
+        if let update = NSApp.windows.first(where: { $0.title == "Software Update" && $0.isVisible }), let view = update.contentView?.superview {
+            write(view: view, to: directory.appendingPathComponent("9-update.png"))
+        }
         WindowOpener.openWindow?(id: "welcome")
         try? await Task.sleep(for: .seconds(1.5))
         if let welcome = NSApp.windows.first(where: { $0.title == "Welcome to Forest" && $0.isVisible }), let view = welcome.contentView?.superview {

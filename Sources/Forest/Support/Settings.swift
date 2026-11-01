@@ -29,6 +29,9 @@ enum SettingsKey {
     static let celebrate = "celebrate"
     static let pullRequests = "pullRequests"
     static let codeTheme = "codeTheme"
+    static let updateAutomatically = "update.automatically"
+    static let updateLastCheck = "update.lastCheck"
+    static let updateSkippedVersion = "update.skippedVersion"
 }
 
 enum Preferences {

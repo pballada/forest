@@ -60,6 +60,15 @@ open build/Forest.app
 open build/Forest.app --args ~/code/my-repo   # open a repo directly
 ```
 
+To ship a signed, notarized build (`build/Forest-<version>.dmg` and `.zip`), you need a Developer ID Application
+certificate and a `notary` keychain profile (`xcrun notarytool store-credentials notary …`). Then run:
+
+```sh
+scripts/release.sh
+```
+
+The version comes from the latest `v*` tag (default 0.2.0); the build number is the commit count.
+
 For development, `swift run Forest`, or open `Package.swift` in Xcode. Run tests with `swift test`.
 
 Optional: install the [GitHub CLI](https://cli.github.com) (`gh auth login`) to see pull requests and CI status.

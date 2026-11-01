@@ -5,7 +5,10 @@ set -euo pipefail
 CONFIG="${1:-release}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/build/Forest.app"
-VERSION="$(git -C "$ROOT" describe --tags --always 2>/dev/null || echo 0.1.0)"
+# Marketing version from the latest v* tag (or MARKETING_VERSION); build number = commit count.
+VERSION="${MARKETING_VERSION:-$(git -C "$ROOT" describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo 0.2.0)}"
+VERSION="${VERSION#v}"
+BUILD="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
 
 cd "$ROOT"
 swift build -c "$CONFIG" --product Forest
@@ -38,8 +41,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleExecutable</key><string>Forest</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>${VERSION#v}</string>
-  <key>CFBundleVersion</key><string>${VERSION#v}</string>
+  <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+  <key>CFBundleVersion</key><string>${BUILD}</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
   <key>NSHighResolutionCapable</key><true/>

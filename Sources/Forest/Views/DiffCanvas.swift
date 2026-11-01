@@ -23,6 +23,7 @@ struct DiffCanvas: NSViewRepresentable {
     let diff: FileDiff
     let layout: DiffLayout
     let wrap: Bool
+    let theme: CodeTheme
     let actions: HunkActions
     let selection: Set<Int>
     let controller: DiffCanvasController
@@ -44,6 +45,7 @@ struct DiffCanvas: NSViewRepresentable {
             if let hunk = diff.hunks.first(where: { $0.id == index }) { onHunkAction(hunk, action) }
         }
         document.onOpenInEditor = onOpenInEditor
+        view.apply(theme)
         document.update(diff: diff, layout: layout, wrap: wrap, actions: actions, selection: selection)
         view.ruler.needsDisplay = true
     }
@@ -80,6 +82,12 @@ final class DiffContainerView: NSView {
         document.viewportChanged()
     }
 
+    func apply(_ theme: CodeTheme) {
+        DiffPalette.theme = theme
+        appearance = theme.appearance
+        document.themeChanged(theme.id)
+    }
+
     @objc private func scrolled() {
         ruler.needsDisplay = true
         document.horizontalScrollChanged()
@@ -110,6 +118,7 @@ final class DiffDocumentView: NSView, NSUserInterfaceValidations {
     private var hoveredButton: (row: Int, action: HunkAction)?
     private var lastScrollX: CGFloat = 0
     private var identity = ""
+    private var themeID = ""
 
     // Metrics
     private let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
@@ -160,6 +169,14 @@ final class DiffDocumentView: NSView, NSUserInterfaceValidations {
             anchorRow = nil
             scroll(NSPoint(x: 0, y: 0))
         }
+    }
+
+    func themeChanged(_ id: String) {
+        guard id != themeID else { return }
+        themeID = id
+        cache = [:]
+        needsDisplay = true
+        ruler?.rebuildMarks()
     }
 
     func viewportChanged() {
@@ -390,7 +407,7 @@ final class DiffDocumentView: NSView, NSUserInterfaceValidations {
         if display.utf16.count > limit { display = String(display.utf16.prefix(limit)).map { $0 + "…" } ?? display }
         let baseline = (lineHeight - (font.ascender - font.descender)) / 2 - 1
         let text = NSMutableAttributedString(string: display, attributes: [
-            .font: font, .foregroundColor: line.kind == .noNewline ? NSColor.tertiaryLabelColor : NSColor.labelColor,
+            .font: font, .foregroundColor: line.kind == .noNewline ? DiffPalette.secondaryText : DiffPalette.text,
             .paragraphStyle: paragraph, .baselineOffset: baseline,
         ])
         let length = text.length
@@ -462,7 +479,7 @@ final class DiffDocumentView: NSView, NSUserInterfaceValidations {
             let style = NSMutableParagraphStyle()
             style.lineBreakMode = .byTruncatingTail
             (hunk.context as NSString).draw(with: contextRect, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: [
-                .font: headerFont, .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: style,
+                .font: headerFont, .foregroundColor: DiffPalette.secondaryText, .paragraphStyle: style,
             ])
         }
         for button in buttons {
@@ -473,10 +490,10 @@ final class DiffDocumentView: NSView, NSUserInterfaceValidations {
             } else if button.action == .discard {
                 DiffPalette.removedText.withAlphaComponent(hovered ? 0.2 : 0.1).setFill()
             } else {
-                NSColor.labelColor.withAlphaComponent(hovered ? 0.14 : 0.07).setFill()
+                DiffPalette.text.withAlphaComponent(hovered ? 0.14 : 0.07).setFill()
             }
             path.fill()
-            let color: NSColor = button.prominent ? .white : (button.action == .discard ? DiffPalette.removedText : .labelColor)
+            let color: NSColor = button.prominent ? .white : (button.action == .discard ? DiffPalette.removedText : DiffPalette.text)
             let title = button.title as NSString
             let attributes: [NSAttributedString.Key: Any] = [.font: buttonFont, .foregroundColor: color]
             let size = title.size(withAttributes: attributes)
@@ -717,7 +734,7 @@ final class DiffOverviewRuler: NSView {
             let total = document.bounds.height
             let rect = NSRect(x: 1, y: 2 + clip.bounds.minY / total * height, width: bounds.width - 2,
                               height: max(10, clip.bounds.height / total * height))
-            NSColor.labelColor.withAlphaComponent(0.09).setFill()
+            DiffPalette.text.withAlphaComponent(0.12).setFill()
             NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3).fill()
         }
     }

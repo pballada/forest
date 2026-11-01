@@ -149,7 +149,7 @@ struct SyntaxHighlighter {
         return result
     }
 
-    static func color(for token: Token) -> NSColor {
+    @MainActor static func color(for token: Token) -> NSColor {
         switch token {
         case .keyword: DiffPalette.keyword
         case .type: DiffPalette.type

@@ -35,8 +35,8 @@ enum Theme {
     static let forestGradient = LinearGradient(colors: [Color(red: 0.16, green: 0.72, blue: 0.50), Color(red: 0.08, green: 0.45, blue: 0.52)],
                                                startPoint: .topLeading, endPoint: .bottomTrailing)
 
-    static let added = Color(nsColor: DiffPalette.addedText)
-    static let removed = Color(nsColor: DiffPalette.removedText)
+    static let added = Color(nsColor: CodeTheme.forest.addedText)
+    static let removed = Color(nsColor: CodeTheme.forest.removedText)
 
     static func color(for status: ChangeStatus) -> Color {
         switch status {
@@ -117,27 +117,33 @@ extension NSColor {
     static let forestLeaf = NSColor.dynamic(light: NSColor(hex: 0x1E9E5E), dark: NSColor(hex: 0x3CCB7F))
 }
 
-/// Colours used by the diff renderer (AppKit), shared with SwiftUI through `Theme`.
+/// Colours used by the diff renderer (AppKit), from the code theme chosen in Settings.
+@MainActor
 enum DiffPalette {
-    static let addedText = NSColor.dynamic(light: NSColor(hex: 0x1F9D55), dark: NSColor(hex: 0x4ADE80))
-    static let removedText = NSColor.dynamic(light: NSColor(hex: 0xD93F3F), dark: NSColor(hex: 0xF87171))
-    static let addedBackground = NSColor.dynamic(light: NSColor(hex: 0x2FBF71, alpha: 0.12), dark: NSColor(hex: 0x2FBF71, alpha: 0.15))
-    static let removedBackground = NSColor.dynamic(light: NSColor(hex: 0xF05252, alpha: 0.10), dark: NSColor(hex: 0xF05252, alpha: 0.14))
-    static let addedHighlight = NSColor.dynamic(light: NSColor(hex: 0x2FBF71, alpha: 0.34), dark: NSColor(hex: 0x2FBF71, alpha: 0.38))
-    static let removedHighlight = NSColor.dynamic(light: NSColor(hex: 0xF05252, alpha: 0.28), dark: NSColor(hex: 0xF05252, alpha: 0.36))
-    static let gutter = NSColor.dynamic(light: NSColor(white: 0, alpha: 0.025), dark: NSColor(white: 1, alpha: 0.03))
-    static let gutterText = NSColor.dynamic(light: NSColor(white: 0, alpha: 0.32), dark: NSColor(white: 1, alpha: 0.32))
-    static let header = NSColor.dynamic(light: NSColor(hex: 0x1E9E5E, alpha: 0.07), dark: NSColor(hex: 0x3CCB7F, alpha: 0.09))
-    static let headerText = NSColor.dynamic(light: NSColor(hex: 0x17804B), dark: NSColor(hex: 0x6EE7A8))
-    static let selection = NSColor.dynamic(light: NSColor(hex: 0x1E9E5E, alpha: 0.20), dark: NSColor(hex: 0x3CCB7F, alpha: 0.24))
-    static let filler = NSColor.dynamic(light: NSColor(white: 0, alpha: 0.05), dark: NSColor(white: 1, alpha: 0.05))
-    static let separator = NSColor.dynamic(light: NSColor(white: 0, alpha: 0.08), dark: NSColor(white: 1, alpha: 0.08))
+    /// Looked up once per draw pass rather than once per colour.
+    static var theme = CodeTheme.current
 
-    static let keyword = NSColor.dynamic(light: NSColor(hex: 0xAD3DA4), dark: NSColor(hex: 0xFF7AB2))
-    static let type = NSColor.dynamic(light: NSColor(hex: 0x157A62), dark: NSColor(hex: 0x6BDFB8))
-    static let string = NSColor.dynamic(light: NSColor(hex: 0xC2410C), dark: NSColor(hex: 0xFF9F6E))
-    static let comment = NSColor.dynamic(light: NSColor(hex: 0x6B7785), dark: NSColor(hex: 0x8A96A3))
-    static let number = NSColor.dynamic(light: NSColor(hex: 0x2B50C8), dark: NSColor(hex: 0xD9C97C))
-    static let attribute = NSColor.dynamic(light: NSColor(hex: 0x8A5A00), dark: NSColor(hex: 0xFDB863))
-    static let key = NSColor.dynamic(light: NSColor(hex: 0x1D6FB8), dark: NSColor(hex: 0x7CC4FA))
+    static var background: NSColor { theme.background }
+    static var text: NSColor { theme.text }
+    static var secondaryText: NSColor { theme.secondaryText }
+    static var addedText: NSColor { theme.addedText }
+    static var removedText: NSColor { theme.removedText }
+    static var addedBackground: NSColor { theme.addedBackground }
+    static var removedBackground: NSColor { theme.removedBackground }
+    static var addedHighlight: NSColor { theme.addedHighlight }
+    static var removedHighlight: NSColor { theme.removedHighlight }
+    static var gutter: NSColor { theme.gutter }
+    static var gutterText: NSColor { theme.gutterText }
+    static var header: NSColor { theme.header }
+    static var headerText: NSColor { theme.headerText }
+    static var selection: NSColor { theme.selection }
+    static var filler: NSColor { theme.filler }
+    static var separator: NSColor { theme.separator }
+    static var keyword: NSColor { theme.keyword }
+    static var type: NSColor { theme.type }
+    static var string: NSColor { theme.string }
+    static var comment: NSColor { theme.comment }
+    static var number: NSColor { theme.number }
+    static var attribute: NSColor { theme.attribute }
+    static var key: NSColor { theme.key }
 }

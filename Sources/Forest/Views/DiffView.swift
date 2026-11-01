@@ -19,6 +19,7 @@ struct DiffView: View {
 
     @AppStorage("diff.wrap") private var wrap = false
     @AppStorage("diff.presentation") private var presentation = DiffPresentation.unified
+    @AppStorage(SettingsKey.codeTheme) private var themeID = CodeTheme.defaultID
     @State private var built: BuiltDiff?
     @State private var controller = DiffCanvasController()
     @State private var localSelection: Set<Int> = []
@@ -50,7 +51,8 @@ struct DiffView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(Color(nsColor: theme.background))
+        .themedColorScheme(theme)
         .task(id: diff.map { BuildKey(fingerprint: $0.fingerprint, path: $0.path, presentation: presentation) }) {
             guard let diff else { built = nil; return }
             let presentation = presentation
@@ -61,6 +63,8 @@ struct DiffView: View {
             built = result
         }
     }
+
+    private var theme: CodeTheme { CodeTheme.named(themeID) }
 
     @ViewBuilder private func content(for diff: FileDiff) -> some View {
         if diff.isBinary {
@@ -93,7 +97,7 @@ struct DiffView: View {
                 if let kind = built.insights.generatedKind, revealedGenerated != diff.path {
                     GeneratedFileCard(kind: kind, diff: diff) { revealedGenerated = diff.path }
                 } else {
-                    DiffCanvas(diff: built.diff, layout: built.layout, wrap: wrap, actions: actions,
+                    DiffCanvas(diff: built.diff, layout: built.layout, wrap: wrap, theme: theme, actions: actions,
                                selection: mode == .readOnly ? localSelection : store.selectedLines,
                                controller: controller,
                                onSelect: { ids in
@@ -543,6 +547,17 @@ private struct Checkerboard: View {
                                  with: .color(.primary.opacity(0.05)))
                 }
             }
+        }
+    }
+}
+
+extension View {
+    /// Fixed code themes force their own light or dark appearance; Forest follows the system.
+    @ViewBuilder func themedColorScheme(_ theme: CodeTheme) -> some View {
+        if let dark = theme.isDark {
+            environment(\.colorScheme, dark ? .dark : .light)
+        } else {
+            self
         }
     }
 }

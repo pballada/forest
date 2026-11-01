@@ -6,6 +6,8 @@ struct SettingsView: View {
         TabView {
             GeneralSettings()
                 .tabItem { Label("General", systemImage: "gearshape") }
+            AppearanceSettings()
+                .tabItem { Label("Themes", systemImage: "paintpalette") }
             IntegrationSettings()
                 .tabItem { Label("Integrations", systemImage: "puzzlepiece.extension") }
             ClaudeSettings()
@@ -39,6 +41,70 @@ private struct GeneralSettings: View {
                 Text(GitRunner.defaultExecutable.path).font(Theme.mono).foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+struct AppearanceSettings: View {
+    @AppStorage(SettingsKey.codeTheme) private var themeID = CodeTheme.defaultID
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Colours for diffs and code. Fixed themes keep their own light or dark look; Forest follows the system.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
+                ForEach(CodeTheme.all) { theme in
+                    ThemeCard(theme: theme, selected: theme.id == themeID)
+                        .onTapGesture { themeID = theme.id }
+                }
+            }
+        }
+    }
+}
+
+/// A miniature diff drawn in a theme's colours.
+private struct ThemeCard: View {
+    let theme: CodeTheme
+    let selected: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 0) {
+                line(" ", [("func ", theme.keyword), ("grow", theme.text), ("() {", theme.text)], background: nil)
+                line("−", [("  let ", theme.keyword), ("h = ", theme.text), ("1", theme.number)], background: theme.removedBackground, marker: theme.removedText)
+                line("+", [("  let ", theme.keyword), ("h = ", theme.text), ("\"tall\"", theme.string)], background: theme.addedBackground, marker: theme.addedText)
+                line(" ", [("  // ", theme.comment), ("leaves", theme.comment)], background: nil)
+            }
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: theme.background))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(selected ? Theme.leaf : Color.primary.opacity(0.12), lineWidth: selected ? 2.5 : 1)
+            )
+            .themedColorScheme(theme)
+            HStack(spacing: 4) {
+                if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.leaf) }
+                Text(theme.name).font(.caption.weight(selected ? .semibold : .regular)).lineLimit(1)
+            }
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private func line(_ sign: String, _ parts: [(String, NSColor)], background: NSColor?, marker: NSColor? = nil) -> some View {
+        HStack(spacing: 0) {
+            Text(sign).foregroundStyle(Color(nsColor: marker ?? theme.gutterText)).frame(width: 14)
+            parts.reduce(Text("")) { $0 + Text($1.0).foregroundColor(Color(nsColor: $1.1)) }
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 10, design: .monospaced))
+        .lineLimit(1)
+        .padding(.vertical, 1.5)
+        .background(background.map { Color(nsColor: $0) } ?? .clear)
     }
 }
 

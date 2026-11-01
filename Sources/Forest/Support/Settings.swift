@@ -28,6 +28,7 @@ enum SettingsKey {
     static let diffIgnoreWhitespace = "diff.ignoreWhitespace"
     static let celebrate = "celebrate"
     static let pullRequests = "pullRequests"
+    static let codeTheme = "codeTheme"
 }
 
 enum Preferences {

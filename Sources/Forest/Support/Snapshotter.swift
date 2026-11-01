@@ -64,6 +64,12 @@ enum Snapshotter {
             capture(name: name, in: directory)
             print("snapshot \(name) after \(String(format: "%.1f", Date().timeIntervalSince(start)))s")
         }
+        let themes = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 420), styleMask: [.titled], backing: .buffered, defer: false)
+        themes.contentView = NSHostingView(rootView: AppearanceSettings().padding(20).frame(width: 560).background(Color(nsColor: .windowBackgroundColor)))
+        themes.orderFront(nil)
+        try? await Task.sleep(for: .seconds(1))
+        if let view = themes.contentView { write(view: view, to: directory.appendingPathComponent("8-themes.png")) }
+        themes.close()
         WindowOpener.openWindow?(id: "welcome")
         try? await Task.sleep(for: .seconds(1.5))
         if let welcome = NSApp.windows.first(where: { $0.title == "Welcome to Forest" && $0.isVisible }), let view = welcome.contentView?.superview {

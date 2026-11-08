@@ -21,7 +21,8 @@ struct WorkspaceWindow: View {
         content
             .environment(\.theme, theme)
             .preferredColorScheme(theme.colorScheme)
-            .tint(theme.accentColor)
+            // List selections draw white text on the tint, so it must be dark enough to read.
+            .tint(theme.accentFillColor)
             .frame(minWidth: 1000, minHeight: 620)
             .task {
                 WindowOpener.install(open: openWindow, dismiss: dismissWindow)

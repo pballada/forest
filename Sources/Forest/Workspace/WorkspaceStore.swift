@@ -25,6 +25,7 @@ final class WorkspaceStore {
         static let selection = "workspace.selection"
         static let terminals = "workspace.terminals"
         static let inspector = "workspace.inspector"
+        static let tools = "workspace.tools"
     }
 
     private init() {
@@ -148,6 +149,16 @@ final class WorkspaceStore {
         var saved = UserDefaults.standard.dictionary(forKey: Keys.terminals) as? [String: String] ?? [:]
         saved[path] = sessionID
         UserDefaults.standard.set(saved, forKey: Keys.terminals)
+    }
+
+    func rememberTool(_ tool: AgentTool, for path: String) {
+        var saved = UserDefaults.standard.dictionary(forKey: Keys.tools) as? [String: String] ?? [:]
+        saved[path] = tool.rawValue
+        UserDefaults.standard.set(saved, forKey: Keys.tools)
+    }
+
+    func rememberedTool(for path: String) -> AgentTool? {
+        ((UserDefaults.standard.dictionary(forKey: Keys.tools) as? [String: String])?[path]).flatMap(AgentTool.init(rawValue:))
     }
 
     func rememberedSessionID(for path: String) -> String? {

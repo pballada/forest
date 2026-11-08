@@ -95,7 +95,7 @@ struct CommandPalette: View {
     private var commands: [PaletteItem] {
         let root = store.repository.root
         return [
-            PaletteItem(id: "claude-agent", title: "New Claude Agent…", subtitle: "Isolated worktree + Claude Code", systemImage: "sparkles", tint: Theme.claude) { store.sheet = .newAgent(base: nil) },
+            PaletteItem(id: "claude-agent", title: "New Agent…", subtitle: "Isolated worktree + Claude Code, Codex or Gemini", systemImage: "sparkles", tint: Theme.claude) { store.sheet = .newAgent(base: nil) },
             PaletteItem(id: "compare", title: "Compare…", subtitle: "Two branches, two agents or any two files", systemImage: "rectangle.split.2x1") { store.sheet = .compare(left: nil, right: nil, file: nil) },
             PaletteItem(id: "claude-message", title: "Write Commit Message with Claude", subtitle: "\(store.status.staged.count) staged files",
                         systemImage: "text.badge.star", tint: Theme.claude) { store.sidebar = .changes; store.generateCommitMessage() },
@@ -107,9 +107,9 @@ struct CommandPalette: View {
             PaletteItem(id: "branch", title: "New Branch…", subtitle: "From \(store.status.branch ?? "HEAD")", systemImage: "arrow.triangle.branch") { store.sheet = .newBranch(start: nil) },
             PaletteItem(id: "stash", title: "Stash Changes…", subtitle: "\(store.status.changeCount) files", systemImage: "tray.and.arrow.down") { store.sheet = .stash },
             PaletteItem(id: "stage-all", title: "Stage All", subtitle: "", systemImage: "plus.circle") { store.stageAll() },
-            PaletteItem(id: "changes", title: "Go to Changes", subtitle: "⌘1", systemImage: "pencil.and.list.clipboard") { store.sidebar = .changes },
-            PaletteItem(id: "history", title: "Go to History", subtitle: "⌘2", systemImage: "clock.arrow.circlepath") { store.sidebar = .history },
-            PaletteItem(id: "worktrees", title: "Go to Worktrees", subtitle: "⌘3", systemImage: "square.stack.3d.up") { store.sidebar = .worktrees },
+            PaletteItem(id: "changes", title: "Go to Changes", subtitle: "⌥⌘2", systemImage: "pencil.and.list.clipboard") { store.sidebar = .changes },
+            PaletteItem(id: "history", title: "Go to History", subtitle: "⌥⌘3", systemImage: "clock.arrow.circlepath") { store.sidebar = .history },
+            PaletteItem(id: "terminal", title: "Go to Terminal", subtitle: "⌥⌘1", systemImage: "terminal") { store.sidebar = .terminal },
             PaletteItem(id: "launch-claude", title: "Launch Claude Code Here", subtitle: Format.abbreviatePath(root.path), systemImage: "terminal", tint: Theme.claude) { Launcher.launchClaude(in: root) },
             PaletteItem(id: "terminal", title: "Open in Terminal", subtitle: Preferences.terminal.rawValue, systemImage: "terminal") { Launcher.openTerminal(at: root) },
             PaletteItem(id: "editor", title: "Open in Editor", subtitle: Preferences.editor.rawValue, systemImage: "chevron.left.forwardslash.chevron.right") { Launcher.openInEditor(root) },
@@ -160,6 +160,7 @@ struct CommandPalette: View {
 private struct PaletteRow: View {
     let item: PaletteItem
     let highlighted: Bool
+    @Environment(\.theme) private var theme
 
     var body: some View {
         HStack(spacing: 10) {
@@ -176,7 +177,7 @@ private struct PaletteRow: View {
         .font(.system(size: 13))
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(highlighted ? Theme.leaf : .clear))
+        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(highlighted ? theme.accentFillColor : .clear))
         .contentShape(Rectangle())
     }
 }

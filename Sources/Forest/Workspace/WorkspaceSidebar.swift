@@ -252,7 +252,15 @@ struct WorktreeRowMenu: View {
         if let latest = sessions.first {
             Button("Continue “\(latest.displayTitle.prefix(40))”") { open { project.launch(.resume(sessionID: latest.id), in: worktree.path) } }
         }
-        Button("New Claude Session") { open { project.launch(.newSession(prompt: nil), in: worktree.path) } }
+        let other = project.tool(for: worktree.path)
+        if other != .claude, other.continueCommand != nil {
+            Button("Continue Last \(other.name) Session") { open { project.launch(.continueAgent(other), in: worktree.path) } }
+        }
+        Menu("New Session") {
+            ForEach(AgentTool.allCases) { tool in
+                Button(tool.name) { open { project.launch(.agent(tool, prompt: nil), in: worktree.path) } }
+            }
+        }
         if sessions.count > 1 {
             Menu("Resume Session") {
                 ForEach(sessions.prefix(15)) { session in

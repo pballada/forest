@@ -6,6 +6,46 @@ enum TerminalApp: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// The coding agent Forest starts in a worktree's terminal.
+enum AgentTool: String, CaseIterable, Identifiable {
+    case claude, codex, gemini, custom
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .claude: "Claude Code"
+        case .codex: "Codex"
+        case .gemini: "Gemini CLI"
+        case .custom: "Custom"
+        }
+    }
+
+    /// The command that starts a new session, with an optional first prompt.
+    func newSessionCommand(prompt: String?) -> String {
+        let prompt = prompt?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty.map(Launcher.shellQuote)
+        switch self {
+        case .claude: return ["claude", prompt].compactMap { $0 }.joined(separator: " ")
+        case .codex: return ["codex", prompt].compactMap { $0 }.joined(separator: " ")
+        case .gemini: return ["gemini", prompt.map { "-i " + $0 }].compactMap { $0 }.joined(separator: " ")
+        case .custom: return [Preferences.customAgentCommand.nilIfEmpty ?? "$SHELL", prompt].compactMap { $0 }.joined(separator: " ")
+        }
+    }
+
+    /// Continues the most recent session started in the current directory, when the tool supports it.
+    var continueCommand: String? {
+        switch self {
+        case .claude: "claude --continue"
+        case .codex: "codex resume --last"
+        case .gemini: "gemini --resume latest"
+        case .custom: nil
+        }
+    }
+}
+
+extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
 enum EditorApp: String, CaseIterable, Identifiable {
     case vscode = "Visual Studio Code", cursor = "Cursor", zed = "Zed", xcode = "Xcode", sublime = "Sublime Text", nova = "Nova"
     var id: String { rawValue }
@@ -20,6 +60,8 @@ enum SettingsKey {
     static let claudePath = "claudePath"
     static let claudeArguments = "claudeArguments"
     static let claudeBranchPrefix = "claudeBranchPrefix"
+    static let agentTool = "agentTool"
+    static let customAgentCommand = "customAgentCommand"
     static let recentRepositories = "recentRepositories"
     static let claudeModel = "claudeModel"
     static let aiFeatures = "aiFeatures"
@@ -50,6 +92,9 @@ enum Preferences {
     static var editor: EditorApp { EditorApp(rawValue: defaults.string(forKey: SettingsKey.editor) ?? "") ?? .vscode }
     static var claudePath: String? { defaults.string(forKey: SettingsKey.claudePath) }
     static var claudeArguments: String { defaults.string(forKey: SettingsKey.claudeArguments) ?? "" }
+    /// The agent new sessions use by default.
+    static var agentTool: AgentTool { AgentTool(rawValue: defaults.string(forKey: SettingsKey.agentTool) ?? "") ?? .claude }
+    static var customAgentCommand: String { defaults.string(forKey: SettingsKey.customAgentCommand) ?? "" }
     static var claudeBranchPrefix: String {
         defaults.string(forKey: SettingsKey.claudeBranchPrefix) ?? ClaudeCode.defaultBranchPrefix
     }

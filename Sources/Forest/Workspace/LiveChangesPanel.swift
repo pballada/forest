@@ -88,7 +88,7 @@ struct LiveChangesPanel: View {
     }
 
     private var totals: String {
-        let counts = uncommitted.compactMap { store.lineCounts[$0.path] }
+        let counts = uncommitted.map(lineCounts)
         let added = counts.map(\.0).reduce(0, +) + committed.compactMap(\.additions).reduce(0, +)
         let removed = counts.map(\.1).reduce(0, +) + committed.compactMap(\.deletions).reduce(0, +)
         return added + removed > 0 ? " · +\(added) −\(removed)" : ""
@@ -163,7 +163,7 @@ struct LiveChangesPanel: View {
     private func row(_ file: FileChange, committed: Bool, now: Date, showFolder: Bool = true) -> some View {
         let touched = store.recentlyTouched[file.path]
         let age = touched.map { now.timeIntervalSince($0) } ?? .infinity
-        let counts = committed ? (file.additions ?? 0, file.deletions ?? 0) : store.lineCounts[file.path] ?? (0, 0)
+        let counts = committed ? (file.additions ?? 0, file.deletions ?? 0) : lineCounts(file)
         return LiveFileRow(file: file, counts: counts, freshness: age, showFolder: showFolder)
             .contentShape(Rectangle())
             .onTapGesture { open(file, committed: committed) }
@@ -180,6 +180,24 @@ struct LiveChangesPanel: View {
                     Button("Discard Changes…", role: .destructive) { store.discard(store.allChanges.filter { $0.path == file.path }) }
                 }
             }
+    }
+
+    /// Staged and unstaged line counts of a working-copy path, added together (untracked files count every line).
+    private func lineCounts(_ file: FileChange) -> (Int, Int) {
+        let entries = store.allChanges.filter { $0.path == file.path }
+        var added = 0, removed = 0
+        for entry in entries {
+            if let counts = store.lineCounts[entry.id] {
+                added += counts.0
+                removed += counts.1
+            } else if entry.status == .untracked,
+                      let url = Optional(store.repository.root.appendingPathComponent(entry.path)),
+                      ((try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? .max) < 512_000,
+                      let text = try? String(contentsOf: url, encoding: .utf8) {
+                added += text.split(separator: "\n", omittingEmptySubsequences: false).count - (text.hasSuffix("\n") ? 1 : 0)
+            }
+        }
+        return (added, removed)
     }
 
     private func open(_ file: FileChange, committed: Bool) {

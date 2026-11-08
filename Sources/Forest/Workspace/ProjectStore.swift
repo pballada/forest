@@ -121,9 +121,21 @@ final class ProjectStore: Identifiable {
 
     /// Starts Claude in the worktree: a new conversation, a resumed one, or a plain shell.
     enum Launch {
+        /// A new Claude Code conversation (Forest assigns its session id).
         case newSession(prompt: String?)
         case resume(sessionID: String, prompt: String? = nil)
+        /// A new session of another agent CLI (Codex, Gemini, a custom command).
+        case agent(AgentTool, prompt: String?)
+        /// That agent's most recent session in this worktree.
+        case continueAgent(AgentTool)
         case shell
+    }
+
+    /// The agent each worktree's terminal last ran.
+    private(set) var tools: [String: AgentTool] = [:]
+
+    func tool(for path: String) -> AgentTool {
+        tools[path] ?? WorkspaceStore.shared.rememberedTool(for: path) ?? (sessions(for: path).isEmpty ? Preferences.agentTool : .claude)
     }
 
     @discardableResult
@@ -138,9 +150,26 @@ final class ProjectStore: Identifiable {
         case .resume(let id, let prompt):
             terminalSessionIDs[path] = id
             input = claudeCommand(["--resume", id], prompt: prompt)
+        case .agent(let tool, let prompt):
+            if tool == .claude { return self.launch(.newSession(prompt: prompt), in: path) }
+            terminalSessionIDs[path] = nil
+            input = tool.newSessionCommand(prompt: prompt)
+        case .continueAgent(let tool):
+            if tool == .claude {
+                if let latest = sessions(for: path).first { return self.launch(.resume(sessionID: latest.id), in: path) }
+                return self.launch(.newSession(prompt: nil), in: path)
+            }
+            terminalSessionIDs[path] = nil
+            input = tool.continueCommand ?? tool.newSessionCommand(prompt: nil)
         case .shell:
             terminalSessionIDs[path] = nil
         }
+        switch launch {
+        case .newSession, .resume: tools[path] = .claude
+        case .agent(let tool, _), .continueAgent(let tool): tools[path] = tool
+        case .shell: break
+        }
+        if let tool = tools[path] { WorkspaceStore.shared.rememberTool(tool, for: path) }
         let session = makeTerminal(in: path, input: input)
         terminals[path] = session
         WorkspaceStore.shared.rememberTerminal(path: path, sessionID: terminalSessionIDs[path])
@@ -194,18 +223,14 @@ final class ProjectStore: Identifiable {
 
     // MARK: Agent actions
 
-    /// Continues the worktree's latest conversation (or starts one when there is none).
+    /// Continues the worktree's latest conversation with the agent it last ran (or starts one when there is none).
     func continueLatest(in path: String) {
-        if let session = sessions(for: path).first {
-            launch(.resume(sessionID: session.id), in: path)
-        } else {
-            launch(.newSession(prompt: nil), in: path)
-        }
+        launch(.continueAgent(tool(for: path)), in: path)
     }
 
-    /// Called after Forest created a Claude worktree: start the agent there with its task.
-    func agentCreated(at path: String, task: String?) {
-        if let task { launch(.newSession(prompt: task), in: path) }
+    /// Called after Forest created an agent worktree: start the agent there with its task.
+    func agentCreated(at path: String, task: String?, tool: AgentTool = Preferences.agentTool) {
+        if let task { launch(.agent(tool, prompt: task), in: path) }
         WorkspaceStore.shared.select(project: self, worktree: path)
     }
 
@@ -214,6 +239,8 @@ final class ProjectStore: Identifiable {
         let path = worktree.path
         if let terminal = terminal(for: path), terminalSessionIDs[path] != nil {
             terminal.send(text, submit: true)
+        } else if tool(for: path) != .claude {
+            launch(.agent(tool(for: path), prompt: text), in: path)
         } else if let session = sessions(for: path).first {
             launch(.resume(sessionID: session.id, prompt: text), in: path)
         } else {

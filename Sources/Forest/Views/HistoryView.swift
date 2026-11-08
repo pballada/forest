@@ -124,6 +124,7 @@ private struct CommitRow: View {
     let showGraph: Bool
     let selected: Bool
     @State private var hovering = false
+    @Environment(\.theme) private var theme
 
     var body: some View {
         let labels = store.labels[commit.sha] ?? []
@@ -140,7 +141,7 @@ private struct CommitRow: View {
             }
             Text(commit.subject)
                 .font(.system(size: 12.5, weight: isHead ? .semibold : .regular))
-                .foregroundStyle(selected ? Color.white : .primary)
+                .foregroundStyle(theme.textColor)
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 12)
@@ -158,7 +159,7 @@ private struct CommitRow: View {
                 .frame(width: 58, alignment: .trailing)
         }
         .font(.system(size: 12))
-        .foregroundStyle(selected ? Color.white.opacity(0.85) : .secondary)
+        .foregroundStyle(theme.secondaryColor)
         .padding(.leading, showGraph ? 4 : 12)
         .padding(.trailing, 12)
         .frame(height: Layout.rowHeight)
@@ -169,7 +170,9 @@ private struct CommitRow: View {
 
     @ViewBuilder private var background: some View {
         if selected {
-            Theme.leaf
+            // A tint of the theme's accent keeps text and ref colours readable in every theme.
+            theme.accentColor.opacity(0.2)
+                .overlay(alignment: .leading) { Rectangle().fill(theme.accentColor).frame(width: 3) }
         } else if hovering {
             Color.primary.opacity(0.045)
         } else {

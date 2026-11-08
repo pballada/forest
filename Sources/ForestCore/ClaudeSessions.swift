@@ -54,7 +54,9 @@ public enum AgentState: String, Sendable, Hashable {
 /// Reads and caches Claude Code transcripts. Transcripts grow to tens of megabytes and are appended to
 /// constantly, so each one is parsed once and then only from where the last read stopped.
 public final class ClaudeSessionIndex: @unchecked Sendable {
-    public static let shared = ClaudeSessionIndex()
+    /// `FOREST_CLAUDE_HOME` points Forest at another home's `.claude` (demos and screenshots).
+    public static let shared = ClaudeSessionIndex(home: ProcessInfo.processInfo.environment["FOREST_CLAUDE_HOME"]
+        .map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser)
 
     private struct Entry {
         var offset: UInt64 = 0

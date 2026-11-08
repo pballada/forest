@@ -38,7 +38,7 @@ struct WorktreeWorkspace: View {
         case .history, .branch, .tag, .stash:
             HSplitView {
                 RefsSidebar(store: store)
-                    .frame(minWidth: 190, idealWidth: 230, maxWidth: 340)
+                    .frame(minWidth: 170, idealWidth: 210, maxWidth: 280)
                 Group {
                     if case .stash(let sha) = store.sidebar {
                         StashDetailView(store: store, sha: sha)
@@ -47,6 +47,7 @@ struct WorktreeWorkspace: View {
                     }
                 }
                 .frame(minWidth: 500)
+                .layoutPriority(1)
             }
         case .terminal, .worktrees, .worktree:
             TerminalPane(project: project, worktree: worktree)
@@ -234,7 +235,11 @@ struct SessionLauncher: View {
     let worktree: Worktree
     @Environment(\.theme) private var theme
     @State private var prompt = ""
+    @State private var tool: AgentTool?
     @FocusState private var promptFocused: Bool
+
+    /// The agent "New Session" starts: chosen here, else the one this worktree last ran, else the default.
+    private var selectedTool: AgentTool { tool ?? project.tool(for: worktree.path) }
 
     var body: some View {
         let sessions = project.sessions(for: worktree.path)
@@ -245,7 +250,7 @@ struct SessionLauncher: View {
                 HStack(spacing: 12) {
                     ClaudeMark(size: 34)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(primary == nil ? "Start Claude here" : "Pick up where you left off")
+                        Text(primary == nil && otherTool == nil ? "Start an agent here" : "Pick up where you left off")
                             .font(.system(size: 19, weight: .semibold))
                         Text(Format.abbreviatePath(worktree.path))
                             .font(.system(size: 11.5, design: .monospaced))
@@ -253,6 +258,14 @@ struct SessionLauncher: View {
                             .lineLimit(1)
                             .truncationMode(.head)
                     }
+                }
+
+                if primary == nil, let other = otherTool {
+                    Button { project.launch(.continueAgent(other), in: worktree.path) } label: {
+                        ContinueToolCard(tool: other)
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.defaultAction)
                 }
 
                 if let primary {
@@ -278,7 +291,7 @@ struct SessionLauncher: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(primary == nil ? "What should Claude do?" : "Or start a new conversation")
+                    Text(primary == nil && otherTool == nil ? "What should the agent do?" : "Or start a new conversation")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(theme.secondaryColor)
                     HStack(alignment: .bottom, spacing: 8) {
@@ -291,8 +304,21 @@ struct SessionLauncher: View {
                             .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(theme.elevatedColor))
                             .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(theme.borderColor, lineWidth: 0.5))
                             .onSubmit(startNew)
+                        Menu {
+                            ForEach(AgentTool.allCases) { option in
+                                Button { tool = option } label: {
+                                    if option == selectedTool { Label(option.name, systemImage: "checkmark") } else { Text(option.name) }
+                                }
+                            }
+                        } label: {
+                            Text(selectedTool.name)
+                        }
+                        .menuStyle(.button)
+                        .controlSize(.large)
+                        .fixedSize()
+                        .help("Which agent to start")
                         Button(action: startNew) {
-                            Label("New Session", systemImage: "sparkles")
+                            Label("Start", systemImage: "sparkles")
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(theme.agentColor)
@@ -316,8 +342,14 @@ struct SessionLauncher: View {
         project.launch(.resume(sessionID: session.id), in: worktree.path)
     }
 
+    /// A non-Claude agent this worktree last ran, which Forest can continue (it has no transcript index for it).
+    private var otherTool: AgentTool? {
+        let tool = project.tool(for: worktree.path)
+        return tool != .claude && tool.continueCommand != nil && WorkspaceStore.shared.rememberedTool(for: worktree.path) == tool ? tool : nil
+    }
+
     private func startNew() {
-        project.launch(.newSession(prompt: prompt), in: worktree.path)
+        project.launch(.agent(selectedTool, prompt: prompt), in: worktree.path)
         prompt = ""
     }
 }
@@ -412,5 +444,38 @@ extension View {
     /// Sheets, alerts, confirmations, toasts and the command palette of a store.
     func storePresentation(_ store: RepoStore, overlays: Bool = true) -> some View {
         modifier(StorePresentation(store: store, overlays: overlays))
+    }
+}
+
+/// "Continue" for agents whose sessions Forest can't list (Codex, Gemini): resumes their latest one here.
+private struct ContinueToolCard: View {
+    let tool: AgentTool
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Continue with \(tool.name)")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(theme.textColor)
+                Text("Resumes the most recent \(tool.name) session in this worktree (\(tool.continueCommand ?? "")).")
+                    .font(.system(size: 12))
+                    .foregroundStyle(theme.secondaryColor)
+            }
+            Spacer()
+            HStack(spacing: 5) {
+                Text("Continue")
+                Image(systemName: "return")
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(Capsule().fill(theme.agentColor))
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(theme.agentColor.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(theme.agentColor.opacity(0.35), lineWidth: 1))
+        .contentShape(Rectangle())
     }
 }

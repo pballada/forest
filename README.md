@@ -1,14 +1,14 @@
 <p align="center"><img src="Resources/AppIcon.png" width="128" alt="Forest icon"></p>
 
 <h1 align="center">Forest</h1>
-<p align="center"><b>One window for your Claude Code agents: their terminals, their changes, and a native Git client.</b></p>
+<p align="center"><b>One window for your coding agents: their terminals, their changes, and a native Git client.</b></p>
 
-![Worktrees dashboard](docs/screenshots/worktrees.png)
+![Forest: agents in the sidebar, an embedded Ghostty terminal, live changes on the right](docs/screenshots/workspace.png)
 
 Forest replaces a terminal tab per worktree, a separate Git app and a separate diff tool. Every project lives in one
-window: the sidebar lists the main checkout and each Claude worktree (`.claude/worktrees/<name>`) with what its agent
+window: the sidebar lists the main checkout and each agent worktree (`.claude/worktrees/<name>`) with what its agent
 is doing, the middle shows that worktree's terminal, changes or history, and the right panel shows files changing as
-Claude writes them.
+the agent writes them. Claude Code is the first-class citizen; Codex, Gemini CLI or any command work too.
 
 ## Features
 
@@ -22,7 +22,9 @@ Claude writes them.
   (`claude --resume <id>`), pick an earlier one, or start a new one with a task. After a relaunch everything is one
   click (or ↩) away
 - **New Agent** (⌘N): describe a task and Forest creates `.claude/worktrees/<name>` on `worktree-<name>` and starts
-  Claude there with that task
+  the agent there with that task: **Claude Code, Codex, Gemini CLI** or a custom command (default in Settings › Agents)
+- Claude conversations are listed by title from their transcripts; Codex and Gemini sessions continue with
+  `codex resume --last` and `gemini --resume latest` in the worktree
 - **Live changes**: files appear in the right panel the moment they're written, freshest first and briefly lit,
   with what the branch already committed on top of main, and Review / Merge at hand
 - **Review an agent's work**: every commit and file it changed against main (uncommitted work included), a one-click
@@ -59,13 +61,17 @@ Claude writes them.
   GitHub Dark and Light
 - Updates itself from GitHub Releases, installing only builds signed by the same developer and notarized by Apple
 
-| Xcode project, side by side | Reviewing an agent |
+| Continue where you left off | All agents of a project |
 |---|---|
-| ![Xcode project diff](docs/screenshots/xcode-project-split.png) | ![Agent review](docs/screenshots/agent-review.png) |
+| ![Session launcher](docs/screenshots/sessions.png) | ![Worktrees overview](docs/screenshots/worktrees.png) |
 
-| History | Image diff |
+| History, with branches beside the graph | Forest Day theme |
 |---|---|
-| ![History](docs/screenshots/history.png) | ![Image diff](docs/screenshots/image-diff.png) |
+| ![History](docs/screenshots/history.png) | ![Forest Day](docs/screenshots/workspace-light.png) |
+
+| Reviewing an agent | Compare |
+|---|---|
+| ![Agent review](docs/screenshots/agent-review.png) | ![Compare](docs/screenshots/compare.png) |
 
 ## Build & run
 

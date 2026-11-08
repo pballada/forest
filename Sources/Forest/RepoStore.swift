@@ -795,7 +795,7 @@ final class RepoStore {
     // MARK: - Worktrees
 
     /// Creates a worktree with Claude Code's own layout and starts an agent in it.
-    func createClaudeWorktree(name: String, base: String?, task: String, launch: Bool) {
+    func createClaudeWorktree(name: String, base: String?, task: String, launch: Bool, tool: AgentTool = Preferences.agentTool) {
         let root = mainRoot ?? repository.root
         let path = ClaudeCode.worktreePath(repoRoot: root, name: name)
         let branch = Preferences.claudeBranchPrefix + name
@@ -804,7 +804,7 @@ final class RepoStore {
             try await self.repository.addWorktree(at: path, newBranch: branch, base: base)
             await self.refresh(full: false)
             if let project = self.project {
-                project.agentCreated(at: path.path, task: launch ? task : nil)
+                project.agentCreated(at: path.path, task: launch ? task : nil, tool: tool)
             } else if launch {
                 Launcher.launchClaude(in: path, prompt: task)
             }

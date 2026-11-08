@@ -13,7 +13,7 @@ struct SettingsView: View {
             IntegrationSettings()
                 .tabItem { Label("Integrations", systemImage: "puzzlepiece.extension") }
             ClaudeSettings()
-                .tabItem { Label("Claude Code", systemImage: "sparkles") }
+                .tabItem { Label("Agents", systemImage: "sparkles") }
         }
         .frame(width: 640)
         .padding(20)
@@ -166,6 +166,9 @@ private struct ClaudeSettings: View {
     @AppStorage(SettingsKey.aiFeatures) private var aiFeatures = true
     @AppStorage(SettingsKey.claudeModel) private var model = ""
 
+    @AppStorage(SettingsKey.agentTool) private var agentTool = AgentTool.claude.rawValue
+    @AppStorage(SettingsKey.customAgentCommand) private var customCommand = ""
+
     var body: some View {
         Form {
             Toggle("Claude helpers: commit messages, commit explanations, agent reviews", isOn: $aiFeatures)
@@ -177,6 +180,17 @@ private struct ClaudeSettings: View {
             }
             .disabled(!aiFeatures)
             Text("Helpers run `claude -p` with tools disabled and no saved session, using your Claude Code login. Diffs are sent to Claude; lockfiles and very large files are left out.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Divider()
+            Picker("Default agent", selection: $agentTool) {
+                ForEach(AgentTool.allCases) { Text($0.name).tag($0.rawValue) }
+            }
+            if agentTool == AgentTool.custom.rawValue {
+                TextField("Custom command", text: $customCommand, prompt: Text("e.g. aider --model sonnet"))
+            }
+            Text("New agents and sessions start this CLI in the worktree's terminal; you can pick another each time. Forest lists Claude Code conversations by title; for Codex and Gemini, Continue resumes their latest session in the worktree.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

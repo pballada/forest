@@ -167,6 +167,7 @@ struct NewAgentSheet: View {
     @State private var agentName = ""
     @State private var nameEdited = false
     @State private var launch = true
+    @State private var tool = Preferences.agentTool
 
     init(store: RepoStore, base: String?) {
         self.store = store
@@ -177,11 +178,18 @@ struct NewAgentSheet: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 10) {
                 ClaudeMark(size: 30)
-                Text("New Claude Agent").font(.title3.weight(.semibold))
+                Text("New Agent").font(.title3.weight(.semibold))
+                Spacer()
+                Picker("", selection: $tool) {
+                    ForEach(AgentTool.allCases) { Text($0.name).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
             }
             Form {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("What should Claude do?").font(.callout.weight(.medium))
+                    Text("What should \(tool == .claude ? "Claude" : tool.name) do?").font(.callout.weight(.medium))
                     TextEditor(text: $task)
                         .font(.system(size: 13))
                         .scrollContentBackground(.hidden)
@@ -200,17 +208,17 @@ struct NewAgentSheet: View {
                 LabeledContent("Location") {
                     Text(".claude/worktrees/\(agentName.isEmpty ? "<name>" : agentName)").font(Theme.mono).foregroundStyle(.secondary)
                 }
-                Toggle("Start Claude now with this task", isOn: $launch)
+                Toggle("Start \(tool.name) now with this task", isOn: $launch)
             }
             .formStyle(.columns)
 
             HStack {
-                Text("Same layout Claude Code uses for claude --worktree, so both tools see the same agents.")
+                Text("Same layout Claude Code uses for claude --worktree; any agent CLI can work in it.")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(launch ? "Create & Start" : "Create Worktree") {
-                    store.createClaudeWorktree(name: agentName, base: base, task: task, launch: launch)
+                    store.createClaudeWorktree(name: agentName, base: base, task: task, launch: launch, tool: tool)
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)

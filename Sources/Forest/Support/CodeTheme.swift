@@ -268,6 +268,22 @@ struct CodeTheme: Identifiable, Equatable {
 }
 
 extension NSColor {
+    /// WCAG relative luminance.
+    var relativeLuminance: CGFloat {
+        guard let c = usingColorSpace(.sRGB) else { return 0.5 }
+        func channel(_ v: CGFloat) -> CGFloat { v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
+        return 0.2126 * channel(c.redComponent) + 0.7152 * channel(c.greenComponent) + 0.0722 * channel(c.blueComponent)
+    }
+
+    /// This colour, darkened just enough for white text on it to read comfortably (contrast ≥ 4.5:1).
+    var fillForWhiteText: NSColor {
+        var color = self
+        for _ in 0..<12 where 1.05 / (color.relativeLuminance + 0.05) < 4.5 {
+            color = color.mixed(with: .black, amount: 0.12)
+        }
+        return color
+    }
+
     /// Blends towards `other` in sRGB.
     func mixed(with other: NSColor, amount: CGFloat) -> NSColor {
         guard let a = usingColorSpace(.sRGB), let b = other.usingColorSpace(.sRGB) else { return self }
@@ -306,4 +322,12 @@ extension CodeTheme {
     var warningColor: Color { Color(nsColor: warning) }
     var agentColor: Color { Color(nsColor: agent) }
     var selectionColor: Color { Color(nsColor: selection) }
+    /// Fills behind white text (selected rows, highlighted items): the accent, darkened when it's too light.
+    var accentFillColor: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            var resolved = self.accent
+            appearance.performAsCurrentDrawingAppearance { resolved = self.accent.usingColorSpace(.sRGB) ?? self.accent }
+            return resolved.fillForWhiteText
+        })
+    }
 }

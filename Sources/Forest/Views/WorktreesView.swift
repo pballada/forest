@@ -12,7 +12,7 @@ struct WorktreesView: View {
                 VStack(alignment: .leading, spacing: 26) {
                     header
                     WorktreeSection(title: "Main", systemImage: "house", store: store, worktrees: main, tint: Theme.leaf)
-                    WorktreeSection(title: "Claude Agents", systemImage: "sparkles", store: store, worktrees: agents, tint: Theme.claude) {
+                    WorktreeSection(title: "Agents", systemImage: "sparkles", store: store, worktrees: agents, tint: Theme.claude) {
                         AgentEmptyCard(store: store)
                     }
                 }
@@ -46,7 +46,7 @@ struct WorktreesView: View {
                     Text("\(store.worktrees.count) checked out")
                     if !store.claudeWorktrees.isEmpty {
                         Text("·")
-                        Label("\(store.claudeWorktrees.count) Claude agent\(store.claudeWorktrees.count == 1 ? "" : "s")", systemImage: "sparkles")
+                        Label("\(store.claudeWorktrees.count) agent\(store.claudeWorktrees.count == 1 ? "" : "s")", systemImage: "sparkles")
                             .foregroundStyle(Theme.claude)
                     }
                     if store.activeAgents > 0 {
@@ -64,7 +64,7 @@ struct WorktreesView: View {
             Button { store.pruneWorktrees() } label: { Label("Prune", systemImage: "scissors") }
                 .help("Remove records of worktrees whose folders were deleted")
             Button { store.sheet = .newAgent(base: nil) } label: {
-                Label("New Claude Agent", systemImage: "sparkles")
+                Label("New Agent", systemImage: "sparkles")
                     .padding(.horizontal, 4)
             }
             .buttonStyle(.borderedProminent)
@@ -115,14 +115,14 @@ private struct AgentEmptyCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
                     ClaudeMark(size: 30)
-                    Text("Run Claude in its own worktree").font(.headline)
+                    Text("Run an agent in its own worktree").font(.headline)
                 }
-                Text("Describe a task and Forest creates an isolated worktree in .claude/worktrees, branches it, and starts Claude Code there — your checkout stays untouched.")
+                Text("Describe a task and Forest creates an isolated worktree in .claude/worktrees, branches it, and starts Claude Code, Codex or Gemini there — your checkout stays untouched.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("New Claude Agent  ⌥⌘N").font(.caption.weight(.semibold)).foregroundStyle(Theme.claude)
+                Text("New Agent  ⌘N").font(.caption.weight(.semibold)).foregroundStyle(Theme.claude)
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -279,7 +279,7 @@ struct WorktreeCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.claude.opacity(0.08)))
         } else {
-            Text("No Claude session yet — launch Claude to start working here.")
+            Text("No Claude session yet — start an agent to work here.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -337,12 +337,12 @@ struct WorktreeCard: View {
                 store.project?.continueLatest(in: worktree.path)
                 open()
             } label: {
-                Label(session == nil ? "Launch Claude" : "Continue", systemImage: "sparkles")
+                Label(session == nil ? "Start" : "Continue", systemImage: "sparkles")
             }
             .buttonStyle(.borderedProminent)
             .tint(Theme.claude)
             .controlSize(.small)
-            .help(session == nil ? "Start Claude Code in this worktree" : "Continue the most recent Claude Code conversation here")
+            .help(session == nil ? "Start \(Preferences.agentTool.name) in this worktree" : "Continue the most recent conversation here")
             Menu {
                 WorktreeMenuItems(store: store, worktree: worktree)
             } label: {

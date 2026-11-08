@@ -1,5 +1,21 @@
 # Roadmap
 
+## Shipped in 0.3
+
+- One workspace window for every project; native git worktrees are gone, Claude worktrees are the unit of work
+- Embedded Ghostty terminals (libghostty built from source), themed by Forest, one per worktree plus an optional shell
+- Session index read incrementally from Claude Code transcripts; continue the last or any earlier conversation in a
+  click, also after relaunching Forest; agent state (working / waiting for you / open / not running) in the sidebar
+- Live changes inspector; Compare for branches, worktrees and arbitrary files
+- One theme system for window, diffs and terminal, with Forest Night / Day and more schemes
+- Locked worktrees can be removed (#1)
+
+## Next for the workspace
+
+- Keep sessions alive when Forest quits (daemon or `claude --bg`), not just resumable
+- Quick-look diff popover from the live changes panel; per-file "who touched it" from the transcript
+- Drag a worktree onto another to compare; compare working trees including uncommitted files
+
 ## Shipped in 0.2
 
 - Custom AppKit diff canvas: draws only visible rows; unified and side-by-side; word-level highlights; syntax colours;

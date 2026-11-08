@@ -1,22 +1,34 @@
 <p align="center"><img src="Resources/AppIcon.png" width="128" alt="Forest icon"></p>
 
 <h1 align="center">Forest</h1>
-<p align="center"><b>A happy, native Git client for macOS, built for worktrees and Claude Code agents.</b></p>
+<p align="center"><b>One window for your Claude Code agents: their terminals, their changes, and a native Git client.</b></p>
 
 ![Worktrees dashboard](docs/screenshots/worktrees.png)
 
-Forest is a SwiftUI Git client that treats **worktrees** as first-class and understands the **Claude Code agents**
-running in them. It's fast on huge diffs, it explains what changed in an Xcode project, and almost everything it does
-can be undone.
+Forest replaces a terminal tab per worktree, a separate Git app and a separate diff tool. Every project lives in one
+window: the sidebar lists the main checkout and each Claude worktree (`.claude/worktrees/<name>`) with what its agent
+is doing, the middle shows that worktree's terminal, changes or history, and the right panel shows files changing as
+Claude writes them.
 
 ## Features
 
-**Worktrees & agents**
-- Worktrees dashboard: main, Claude agents and native worktrees, each with dirty state, ahead/behind, last commit, commits not yet on main, and its pull request with CI status
-- Agent cards read Claude Code's transcripts to show the session title, the original task, a live "working now" pulse, and any PR it opened
-- **New Claude Agent** (⌥⌘N): describe a task and Forest creates `.claude/worktrees/<name>` on `worktree-<name>`, then launches Claude Code in your terminal with that task
-- **Review an agent's work**: every commit and file it changed against main (uncommitted work included), a one-click Claude review, and a box to send feedback straight back into the agent's session
-- Merge into main, push & open a PR, continue the session, lock, or remove the worktree and branch in one step
+**Agents and sessions**
+- **One window, every project**: projects and their agents in the sidebar, each row showing whether Claude is working,
+  waiting for you, open or not running, plus the conversation's title and the number of changed files. ⌘1…⌘9 and
+  ⌃Tab jump between them like terminal tabs
+- **Embedded Ghostty terminal** per worktree (libghostty, Metal-rendered), using your Ghostty config for fonts and
+  keys, coloured by Forest's theme. ⌘D adds a shell underneath
+- **Continue sessions easily**: a worktree without a running terminal offers to continue its last conversation
+  (`claude --resume <id>`), pick an earlier one, or start a new one with a task. After a relaunch everything is one
+  click (or ↩) away
+- **New Agent** (⌘N): describe a task and Forest creates `.claude/worktrees/<name>` on `worktree-<name>` and starts
+  Claude there with that task
+- **Live changes**: files appear in the right panel the moment they're written, freshest first and briefly lit,
+  with what the branch already committed on top of main, and Review / Merge at hand
+- **Review an agent's work**: every commit and file it changed against main (uncommitted work included), a one-click
+  Claude review, and feedback typed straight into the agent's running session
+- Dock badge and a "!" on the row when an agent rings the bell or posts a notification
+- Merge into main, push & open a PR, lock, or remove the worktree and branch in one step
 
 **Claude helpers** (use your Claude Code login, run with tools disabled)
 - ✨ **Write the commit message** from the staged changes, following your repo's conventions (⌥⌘M)
@@ -41,7 +53,10 @@ can be undone.
 - Conflict banner with ours/theirs/mark resolved, plus continue/abort
 - Fetch, pull (ff-only, merge or rebase), push with automatic upstream or force-with-lease
 - ⌘K command palette, live refresh through FSEvents, clone/init/open, drag-and-drop folders
-- Themes for diffs: Solarized Dark (default), Solarized Light, Dracula, One Dark, Monokai, Nord, Gruvbox, Tokyo Night, Catppuccin, GitHub Dark and Light
+- **Compare** (⌥⌘C) two branches or two agents' worktrees (fully, or only since they diverged), or any two files on disk
+- Themes for the whole window, diffs and terminal: Forest Night and Day (Automatic follows the system), Solarized Dark
+  (default) and Light, Tokyo Night, Catppuccin Mocha and Latte, Rosé Pine, Nord, Gruvbox, Dracula, One Dark, Monokai,
+  GitHub Dark and Light
 - Updates itself from GitHub Releases, installing only builds signed by the same developer and notarized by Apple
 
 | Xcode project, side by side | Reviewing an agent |
@@ -54,10 +69,12 @@ can be undone.
 
 ## Build & run
 
-Requires macOS 14+ and Xcode 16+ (Swift 6 toolchain).
+Requires macOS 14+, Xcode 16+ (Swift 6 toolchain) and [Zig](https://ziglang.org) for libghostty (`brew install zig`;
+the version Ghostty's `build.zig.zon` asks for).
 
 ```sh
-scripts/build-app.sh          # builds build/Forest.app (release)
+scripts/build-ghosttykit.sh   # once: builds libghostty from Ghostty's official source into Vendor/
+scripts/build-app.sh          # builds build/Forest.app (release; runs the step above if needed)
 open build/Forest.app
 open build/Forest.app --args ~/code/my-repo   # open a repo directly
 ```
@@ -71,18 +88,23 @@ scripts/release.sh
 
 The version comes from the latest `v*` tag (default 0.2.0); the build number is the commit count.
 
-For development, `swift run Forest`, or open `Package.swift` in Xcode. Run tests with `swift test`.
+For development, `swift run Forest` (after `scripts/build-ghosttykit.sh`), or open `Package.swift` in Xcode. Run tests
+with `swift test`.
 
 Optional: install the [GitHub CLI](https://cli.github.com) (`gh auth login`) to see pull requests and CI status.
 
 ## Architecture
 
 ```
-Sources/ForestCore   Git engine: runs the system git binary, parses porcelain output, lays out the commit
-                     graph and diffs, builds partial-staging patches, summarises Xcode projects,
-                     reads Claude sessions, runs headless Claude and gh
-Sources/Forest       SwiftUI app: RepoStore (per-window state & actions), views, and the AppKit diff canvas
-Tests/               Swift Testing suites, many against real temporary repositories
+Sources/ForestCore      Git engine: runs the system git binary, parses porcelain output, lays out the commit
+                        graph and diffs, builds partial-staging patches, summarises Xcode projects, indexes
+                        Claude Code sessions (incrementally), runs headless Claude and gh
+Sources/ForestTerminal  The only code that talks to libghostty: the shared app and config, the surface view
+                        (keyboard with IME, mouse, clipboard) and TerminalSession, which outlives its views
+Sources/Forest          SwiftUI app: WorkspaceStore (projects, selection) → ProjectStore (worktrees, terminals,
+                        agent state) → RepoStore (one per worktree: status, history, actions), views, diff canvas
+Vendor/                 GhosttyKit.xcframework and Ghostty's shell integration + terminfo (built, not committed)
+Tests/                  Swift Testing suites, many against real temporary repositories
 ```
 
 Forest shells out to your own `git`, so hooks, credential helpers, LFS, signing and config work exactly as they do on
@@ -92,7 +114,14 @@ the command line.
 
 | | |
 |---|---|
-| ⌘1 / ⌘2 / ⌘3 | Changes / History / Worktrees |
+| ⌘N | New agent |
+| ⌘1 … ⌘9 · ⌃Tab / ⌃⇧Tab | Go to worktree n · next / previous |
+| ⌥⌘1 / ⌥⌘2 / ⌥⌘3 | Terminal / Changes / History |
+| ⇧⌘↩ | Continue the last session |
+| ⌘D | Shell under the terminal |
+| ⌥⌘0 | Show or hide live changes |
+| ⌥⌘C | Compare |
+| ⇧⌘R | Review agent |
 | ⌘K | Command palette |
 | ⌘↩ | Commit |
 | ⌥⌘M | Write commit message with Claude |
@@ -100,11 +129,11 @@ the command line.
 | ⌥⌘↓ / ⌥⌘↑ | Next / previous change in a diff |
 | ⇧⌘F / ⇧⌘P / ⇧⌘U | Fetch / Pull / Push |
 | ⇧⌘B | New branch |
-| ⇧⌘T | New worktree |
-| ⌥⌘N | New Claude agent |
-| ⌥⌘L | Launch Claude Code here |
 | ⌥⌘S | Stash |
 | Space / double-click | Stage or unstage selected files |
 | Esc | Clear the line selection in a diff |
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next.
+
+The embedded terminal is [Ghostty](https://ghostty.org)'s libghostty (MIT licensed); its licence ships in the app
+bundle.

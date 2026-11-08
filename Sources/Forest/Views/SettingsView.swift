@@ -8,12 +8,14 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
             AppearanceSettings()
                 .tabItem { Label("Themes", systemImage: "paintpalette") }
+            TerminalSettings()
+                .tabItem { Label("Terminal", systemImage: "terminal") }
             IntegrationSettings()
                 .tabItem { Label("Integrations", systemImage: "puzzlepiece.extension") }
             ClaudeSettings()
                 .tabItem { Label("Claude Code", systemImage: "sparkles") }
         }
-        .frame(width: 520)
+        .frame(width: 640)
         .padding(20)
     }
 }
@@ -45,11 +47,11 @@ struct AppearanceSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Colours for diffs and code. Fixed themes keep their own light or dark look; Forest follows the system.")
+            Text("One theme for the whole window: sidebar, diffs and the terminal. Automatic pairs Forest Day and Forest Night and follows the system.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
                 ForEach(CodeTheme.all) { theme in
                     ThemeCard(theme: theme, selected: theme.id == themeID)
                         .onTapGesture { themeID = theme.id }
@@ -104,6 +106,38 @@ private struct ThemeCard: View {
     }
 }
 
+/// The embedded terminal: font and whose colours to use.
+private struct TerminalSettings: View {
+    @AppStorage(SettingsKey.terminalFont) private var font = ""
+    @AppStorage(SettingsKey.terminalFontSize) private var size = 0.0
+    @AppStorage(SettingsKey.terminalOwnColors) private var ownColors = false
+
+    private static let monospacedFamilies: [String] = NSFontManager.shared.availableFontFamilies.filter { family in
+        NSFontManager.shared.availableMembers(ofFontFamily: family)?.first.flatMap { member in
+            (member[0] as? String).flatMap { NSFont(name: $0, size: 12) }?.isFixedPitch
+        } ?? false
+    }
+
+    var body: some View {
+        Form {
+            Picker("Font", selection: $font) {
+                Text("From my Ghostty config").tag("")
+                Divider()
+                ForEach(Self.monospacedFamilies, id: \.self) { Text($0).tag($0) }
+            }
+            Picker("Size", selection: $size) {
+                Text("From my Ghostty config").tag(0.0)
+                ForEach([11.0, 12, 13, 14, 15, 16, 18], id: \.self) { Text("\(Int($0)) pt").tag($0) }
+            }
+            Toggle("Use my Ghostty colours instead of Forest's theme", isOn: $ownColors)
+            Text("Terminals are Ghostty, embedded. They read your ~/.config/ghostty/config for fonts, keybindings and everything else; Forest only sets colours (unless the option above is on) and keeps ⌘N, ⌘1–9, ⌘D, ⌘K and ⌘T for its own commands.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
 private struct IntegrationSettings: View {
     @AppStorage(SettingsKey.terminal) private var terminal = TerminalApp.terminal.rawValue
     @AppStorage(SettingsKey.editor) private var editor = EditorApp.vscode.rawValue
@@ -111,7 +145,7 @@ private struct IntegrationSettings: View {
 
     var body: some View {
         Form {
-            Picker("Terminal", selection: $terminal) {
+            Picker("External terminal", selection: $terminal) {
                 ForEach(TerminalApp.allCases) { Text($0.rawValue).tag($0.rawValue) }
             }
             Picker("Editor", selection: $editor) {

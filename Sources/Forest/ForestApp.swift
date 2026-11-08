@@ -7,6 +7,13 @@ struct ForestApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
+        Window("Forest", id: "main") {
+            WorkspaceWindow()
+        }
+        .defaultSize(width: 1440, height: 900)
+        .windowToolbarStyle(.unified)
+        .commands { ForestCommands() }
+
         Window("Welcome to Forest", id: "welcome") {
             WelcomeView()
                 .frame(width: 760, height: 500)
@@ -14,17 +21,6 @@ struct ForestApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
-        .commands { ForestCommands() }
-
-        WindowGroup("Repository", id: "repo", for: String.self) { $path in
-            if let path {
-                RepoWindow(path: path)
-            } else {
-                WelcomeView().frame(width: 760, height: 500)
-            }
-        }
-        .defaultSize(width: 1320, height: 840)
-        .windowToolbarStyle(.unified)
 
         Window("Software Update", id: "update") {
             UpdateView()
@@ -84,11 +80,11 @@ enum WindowOpener {
         queued.forEach(Self.open)
     }
 
+    /// Adds the repository to the workspace (or selects it, and the worktree `url` points into).
     static func open(_ url: URL) {
         Task {
-            let root = (try? await Repository.open(url))?.root ?? url
-            RecentRepositories.shared.add(root.path)
-            openWindow?(id: "repo", value: root.path)
+            await WorkspaceStore.shared.open(url)
+            openWindow?(id: "main")
             dismissWindow?(id: "welcome")
         }
     }
@@ -118,7 +114,11 @@ extension FocusedValues {
 
 struct ForestCommands: Commands {
     @FocusedValue(\.repoStore) private var store
+    @FocusedValue(\.workspace) private var workspace
     @Environment(\.openWindow) private var openWindow
+
+    private var project: ProjectStore? { workspace?.selectedProject }
+    private var path: String? { workspace?.selection?.worktree }
 
     var body: some Commands {
         CommandGroup(after: .appInfo) {
@@ -129,7 +129,11 @@ struct ForestCommands: Commands {
         }
 
         CommandGroup(replacing: .newItem) {
-            Button("Open Repository…") { WindowOpener.showOpenPanel() }
+            Button("New Agent…") { (store ?? project?.main)?.sheet = .newAgent(base: nil) }
+                .keyboardShortcut("n")
+                .disabled(project == nil)
+            Divider()
+            Button("Add Project…") { WindowOpener.showOpenPanel() }
                 .keyboardShortcut("o")
             Button("Clone Repository…") { NotificationCenter.default.post(name: .showClone, object: nil); openWindow(id: "welcome") }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
@@ -137,14 +141,51 @@ struct ForestCommands: Commands {
                 .keyboardShortcut("1", modifiers: [.command, .shift])
         }
 
+        CommandGroup(after: .sidebar) {
+            Button(workspace?.showInspector == true ? "Hide Live Changes" : "Show Live Changes") { workspace?.showInspector.toggle() }
+                .keyboardShortcut("0", modifiers: [.command, .option])
+            Divider()
+            Button("Terminal") { store?.sidebar = .terminal }.keyboardShortcut("1", modifiers: [.command, .option])
+            Button("Changes") { store?.sidebar = .changes }.keyboardShortcut("2", modifiers: [.command, .option])
+            Button("History") { store?.sidebar = .history }.keyboardShortcut("3", modifiers: [.command, .option])
+        }
+
+        CommandMenu("Agent") {
+            ForEach(1...9, id: \.self) { index in
+                Button("Worktree \(index)") { workspace?.selectWorktree(at: index - 1) }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: .command)
+            }
+            Button("Next Worktree") { workspace?.selectAdjacent(1) }.keyboardShortcut(.tab, modifiers: .control)
+            Button("Previous Worktree") { workspace?.selectAdjacent(-1) }.keyboardShortcut(.tab, modifiers: [.control, .shift])
+            Divider()
+            Button("Continue Last Session") {
+                if let project, let path { project.continueLatest(in: path); store?.sidebar = .terminal }
+            }
+            .keyboardShortcut(.return, modifiers: [.command, .shift])
+            .disabled(path == nil)
+            Button("New Claude Session") {
+                if let project, let path { project.launch(.newSession(prompt: nil), in: path); store?.sidebar = .terminal }
+            }
+            .disabled(path == nil)
+            Button("Toggle Shell") {
+                if let project, let path { store?.sidebar = .terminal; project.toggleShell(for: path) }
+            }
+            .keyboardShortcut("d")
+            .disabled(path == nil || project?.terminal(for: path ?? "") == nil)
+            Button("Close Terminal") { if let project, let path { project.closeTerminal(for: path) } }
+                .disabled(path == nil || project?.terminal(for: path ?? "") == nil)
+            Divider()
+            Button("Review Agent…") {
+                if let project, let path, let worktree = project.worktree(at: path), !worktree.isMain { project.main.sheet = .review(worktree) }
+            }
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            .disabled(path == nil || project?.worktree(at: path ?? "")?.isMain != false)
+        }
+
         CommandMenu("Repository") {
             Button("Command Palette…") { store?.showPalette.toggle() }
                 .keyboardShortcut("k")
                 .disabled(store == nil)
-            Divider()
-            Button("Changes") { store?.sidebar = .changes }.keyboardShortcut("1")
-            Button("History") { store?.sidebar = .history }.keyboardShortcut("2")
-            Button("Worktrees") { store?.sidebar = .worktrees }.keyboardShortcut("3")
             Divider()
             Button(store?.undo.map { "Undo \($0.title)" } ?? "Undo") { store?.performUndo() }
                 .keyboardShortcut("z", modifiers: [.command, .option])
@@ -165,17 +206,12 @@ struct ForestCommands: Commands {
             Button("Stash Changes…") { store?.sheet = .stash }.keyboardShortcut("s", modifiers: [.command, .option])
             Divider()
             Button("New Branch…") { store?.sheet = .newBranch(start: nil) }.keyboardShortcut("b", modifiers: [.command, .shift])
-            Button("New Claude Agent…") { store?.sheet = .newAgent(base: nil) }
-                .keyboardShortcut("n", modifiers: [.command, .option])
             Divider()
-            Button("Open in Terminal") { if let s = store { Launcher.openTerminal(at: s.repository.root) } }
+            Button("Open in \(Preferences.terminal.rawValue)") { if let s = store { Launcher.openTerminal(at: s.repository.root) } }
                 .keyboardShortcut("t", modifiers: [.command, .option])
             Button("Open in \(Preferences.editor.rawValue)") { if let s = store { Launcher.openInEditor(s.repository.root) } }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
-            Button("Launch Claude Code Here") { if let s = store { Launcher.launchClaude(in: s.repository.root) } }
-                .keyboardShortcut("l", modifiers: [.command, .option])
             Button("Reveal in Finder") { if let s = store { Launcher.revealInFinder(s.repository.root) } }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
         }
     }
 }

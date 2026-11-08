@@ -1,6 +1,5 @@
 import AppKit
 import ForestCore
-import ForestTerminal
 import SwiftUI
 
 enum SidebarItem: Hashable {
@@ -80,11 +79,25 @@ final class RepoStore {
     var remotes: [Remote] = []
     var stashes: [Stash] = []
     var worktrees: [Worktree] = []
-    var worktreeStatus: [String: WorktreeStatus] = [:]
-    var claudeSessions: [String: ClaudeSessionInfo] = [:]
+    /// Worktree cards, Claude sessions and pull requests are loaded once per project by its primary store
+    /// (the main checkout); stores for linked worktrees read them from there.
+    var worktreeStatus: [String: WorktreeStatus] {
+        get { primary?.worktreeStatus ?? ownWorktreeStatus }
+        set { ownWorktreeStatus = newValue }
+    }
+    var claudeSessions: [String: ClaudeSessionInfo] {
+        get { primary?.claudeSessions ?? ownClaudeSessions }
+        set { ownClaudeSessions = newValue }
+    }
+    private var ownWorktreeStatus: [String: WorktreeStatus] = [:]
+    private var ownClaudeSessions: [String: ClaudeSessionInfo] = [:]
     var operation: RepoOperation = .none
     var lineCounts: [String: (Int, Int)] = [:]
-    var pullRequests: [PullRequest] = []
+    var pullRequests: [PullRequest] {
+        get { primary?.pullRequests ?? ownPullRequests }
+        set { ownPullRequests = newValue }
+    }
+    private var ownPullRequests: [PullRequest] = []
     var mainRoot: URL?
     var loaded = false
     var canLoadMore = false
@@ -123,8 +136,10 @@ final class RepoStore {
     var celebration = 0
     var commitExplanation: ClaudeNote?
 
-    /// Embedded terminals, by worktree path.
-    var terminals: [String: TerminalSession] = [:]
+    /// The project this worktree belongs to (terminals, agents).
+    @ObservationIgnored weak var project: ProjectStore?
+    /// The main checkout's store, for a linked worktree.
+    @ObservationIgnored weak var primary: RepoStore?
 
     @ObservationIgnored private var watcher: FileWatcher?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
@@ -132,9 +147,13 @@ final class RepoStore {
     @ObservationIgnored private var historyFingerprint = ""
     @ObservationIgnored private var toastTask: Task<Void, Never>?
 
-    init(repository: Repository) {
+    init(repository: Repository, primary: RepoStore? = nil) {
         self.repository = repository
+        self.primary = primary
+        sidebar = .terminal
     }
+
+    var isPrimary: Bool { primary == nil }
 
     var name: String { repository.name }
     var currentBranch: Branch? { localBranches.first(where: \.isHead) }
@@ -169,31 +188,43 @@ final class RepoStore {
             self?.mainRoot = try? await repository.mainWorktreeRoot()
             var paths = [repository.root.path]
             if let common, !common.path.hasPrefix(repository.root.path) { paths.append(common.path) }
-            let watcher = FileWatcher(paths: paths) { [weak self] in self?.scheduleRefresh() }
+            // Agents' worktrees live inside the main checkout (.claude/worktrees, git-ignored);
+            // their edits are theirs, not the main checkout's.
+            let nested = repository.root.resolvingSymlinksInPath().path + "/" + ClaudeCode.worktreesDirectory + "/"
+            let watcher = FileWatcher(paths: paths) { [weak self] changed in
+                let own = changed.filter { !$0.hasPrefix(nested) }
+                guard !own.isEmpty else { return }
+                self?.noteTouched(own)
+                self?.scheduleRefresh()
+            }
             watcher.start()
             self?.watcher = watcher
         }
-        // Claude transcripts live outside the repo, so poll them instead of watching.
-        sessionTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+        // Claude transcripts live outside the repo, so poll them instead of watching (reads are incremental).
+        guard isPrimary else { return }
+        sessionTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refreshClaudeSessions() }
         }
     }
 
-    /// The terminal for `path`, started on first use.
-    func terminal(for path: String, initialInput: String? = nil) -> TerminalSession {
-        if let existing = terminals[path], !existing.isClosed { return existing }
-        let session = TerminalSession(directory: URL(fileURLWithPath: path), initialInput: initialInput)
-        session.onClose = { [weak self] closed in
-            if self?.terminals[path] === closed { self?.terminals[path] = nil }
-        }
-        terminals[path] = session
-        return session
-    }
-
     func stop() {
-        terminals.values.forEach { $0.close() }
         watcher?.stop()
         sessionTimer?.invalidate()
+    }
+
+    /// Working-copy files written recently (relative paths), for the live changes panel.
+    var recentlyTouched: [String: Date] = [:]
+
+    private func noteTouched(_ paths: [String]) {
+        let root = repository.root.resolvingSymlinksInPath().path + "/"
+        let now = Date()
+        for path in paths {
+            let resolved = path.hasPrefix(root) ? path : URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+            guard resolved.hasPrefix(root), !resolved.contains("/.git/"), !resolved.hasSuffix("/.git") else { continue }
+            recentlyTouched[String(resolved.dropFirst(root.count))] = now
+        }
+        // Forget old entries so the dictionary stays small.
+        recentlyTouched = recentlyTouched.filter { now.timeIntervalSince($0.value) < 600 }
     }
 
     func scheduleRefresh() {
@@ -247,9 +278,14 @@ final class RepoStore {
         } catch {
             show(error)
         }
-        await refreshWorktreeStatuses()
-        refreshClaudeSessions()
-        if full { refreshPullRequests() }
+        if isPrimary {
+            await refreshWorktreeStatuses()
+            refreshClaudeSessions()
+            if full { refreshPullRequests() }
+        } else {
+            // This worktree's own card on the project overview.
+            await primary?.refreshWorktreeStatus(path: repository.root.path)
+        }
     }
 
     func refreshPullRequests() {
@@ -297,6 +333,11 @@ final class RepoStore {
             return collected
         }
         worktreeStatus = results
+    }
+
+    func refreshWorktreeStatus(path: String) async {
+        guard let worktree = worktrees.first(where: { $0.path == path }) else { return }
+        ownWorktreeStatus[path] = await Repository.worktreeStatus(worktree)
     }
 
     func refreshClaudeSessions() {
@@ -759,8 +800,12 @@ final class RepoStore {
         run("Creating Claude worktree", success: launch ? "Claude is starting in \(name)" : "Claude worktree ready") {
             try await self.repository.excludeLocally("/.claude/worktrees/")
             try await self.repository.addWorktree(at: path, newBranch: branch, base: base)
-            if launch { Launcher.launchClaude(in: path, prompt: task) }
-            self.sidebar = .worktrees
+            await self.refresh(full: false)
+            if let project = self.project {
+                project.agentCreated(at: path.path, task: launch ? task : nil)
+            } else if launch {
+                Launcher.launchClaude(in: path, prompt: task)
+            }
         }
     }
 
@@ -773,6 +818,7 @@ final class RepoStore {
         message += branch.map { "The branch “\($0)” is kept." } ?? ""
         confirm("Remove worktree “\(worktree.name)”?", message, action: "Remove") {
             self.run("Removing worktree", success: "Removed \(worktree.name)") {
+                self.project?.worktreeWillBeRemoved(worktree.path)
                 try await self.repository.removeWorktree(worktree, force: dirty || worktree.isLocked)
             }
         }
@@ -785,6 +831,7 @@ final class RepoStore {
         confirm("Remove “\(worktree.name)” and delete “\(branch)”?",
                 active + "The worktree folder and its branch are deleted, including unmerged commits.", action: "Remove & Delete") {
             self.run("Cleaning up", success: "Removed \(worktree.name)") {
+                self.project?.worktreeWillBeRemoved(worktree.path)
                 try await self.repository.removeWorktree(worktree, force: true)
                 try await self.repository.git.run(["branch", "-D", branch])
             }
@@ -889,7 +936,11 @@ final class RepoStore {
 
     /// Sends a follow-up instruction to the agent working in `worktree`, continuing its last conversation.
     func sendFeedback(_ text: String, to worktree: Worktree) {
-        Launcher.launchClaude(in: worktree.url, prompt: text, continuing: claudeSessions[worktree.path] != nil)
+        if let project {
+            project.send(text, to: worktree)
+        } else {
+            Launcher.launchClaude(in: worktree.url, prompt: text, continuing: claudeSessions[worktree.path] != nil)
+        }
         flash("Sent to \(worktree.name)")
     }
 

@@ -12,96 +12,102 @@ enum Snapshotter {
         ProcessInfo.processInfo.environment["FOREST_SNAPSHOT_DIR"].map { URL(fileURLWithPath: $0) }
     }
 
-    static func run(store: RepoStore) async {
+    static func run(workspace: WorkspaceStore) async {
         guard let directory else { return }
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try? await Task.sleep(for: .seconds(2.5))
+        // Wait for the project from the command line to load.
+        for _ in 0..<40 where workspace.selectedProject?.main.loaded != true {
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        guard let project = workspace.selectedProject else { return }
+        let mainPath = project.root.path
+        try? await Task.sleep(for: .seconds(1.5))
+        let store = project.store(for: mainPath)
+        let themes = (ProcessInfo.processInfo.environment["FOREST_SNAPSHOT_THEMES"] ?? "")
+            .split(separator: ",").map(String.init)
 
         let files = (ProcessInfo.processInfo.environment["FOREST_SNAPSHOT_FILES"] ?? "")
             .split(separator: ",").map(String.init)
         var steps: [(String, () -> Void)] = []
+        steps.append(("1-terminal", {
+            workspace.select(project: project, worktree: mainPath)
+            store.sidebar = .terminal
+            let session = project.launch(.shell, in: mainPath)
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                session.send("echo forest $TERM && git log --oneline -3", submit: true)
+            }
+        }))
         for (index, file) in files.enumerated() {
             let split = file.hasPrefix("split:")
             let path = split ? String(file.dropFirst(6)) : file
-            steps.append(("1-changes-\(index)", {
+            steps.append(("2-changes-\(index)", {
                 UserDefaults.standard.set(split ? DiffPresentation.split.rawValue : DiffPresentation.unified.rawValue, forKey: "diff.presentation")
                 store.sidebar = .changes
                 let id = store.allChanges.first { $0.path == path }?.id
                 store.selectedChangeIDs = id.map { [$0] } ?? []
             }))
         }
-        UserDefaults.standard.set(DiffPresentation.unified.rawValue, forKey: "diff.presentation")
         steps += [
-            ("1-terminal", {
-                store.sidebar = .terminal
-                let session = store.terminal(for: store.repository.root.path)
-                Task {
-                    try? await Task.sleep(for: .seconds(1))
-                    session.send("echo forest-spike $TERM $TERM_PROGRAM && git status -sb | head -3", submit: true)
-                }
-            }),
-            ("2-history", {
-                if let session = store.terminals[store.repository.root.path] {
-                    try? session.visibleText().write(to: directory.appendingPathComponent("1-terminal.txt"), atomically: true, encoding: .utf8)
-                    if let image = session.snapshotImage(), let tiff = image.tiffRepresentation,
-                       let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
-                        try? png.write(to: directory.appendingPathComponent("1-terminal-surface.png"))
-                    }
-                }
+            ("3-history", {
                 UserDefaults.standard.set(DiffPresentation.unified.rawValue, forKey: "diff.presentation")
                 store.sidebar = .history
                 if let merge = store.commits.first(where: \.isMerge) { Task { await store.selectCommit(merge.id) } }
             }),
-            ("3-worktrees", { store.sidebar = .worktrees }),
-            ("4-review", {
-                if let agent = store.worktrees.first(where: { $0.isClaude && $0.branch != store.mainWorktree?.branch && $0.name.contains("refactor") })
-                    ?? store.claudeWorktrees.first {
-                    store.sheet = .review(agent)
-                }
-            }),
-            ("5-palette", {
-                store.sheet = nil
+            ("4-overview", { workspace.select(project: project, worktree: nil) }),
+        ]
+        if let agent = project.agents.first {
+            steps.append(("5-agent", {
+                workspace.select(project: project, worktree: agent.path)
+                project.store(for: agent.path).sidebar = .terminal
+            }))
+            steps.append(("6-review", { project.main.sheet = .review(agent) }))
+        }
+        steps += [
+            ("7-palette", {
+                project.main.sheet = nil
+                workspace.select(project: project, worktree: mainPath)
+                store.sidebar = .terminal
                 store.showPalette = true
             }),
-            ("6-new-agent", {
+            ("8-new-agent", {
                 store.showPalette = false
                 store.sheet = .newAgent(base: nil)
             }),
-            ("7-toast", {
+            ("9-toast", {
                 store.sheet = nil
                 store.offerUndo("Commit") {}
                 store.flash("Committed “Add onboarding analytics”")
             }),
         ]
+        for theme in themes {
+            steps.append(("theme-\(theme)", {
+                UserDefaults.standard.set(theme, forKey: SettingsKey.codeTheme)
+                workspace.select(project: project, worktree: project.agents.first?.path ?? mainPath)
+            }))
+        }
         for (name, step) in steps {
             let start = Date()
             step()
             try? await Task.sleep(for: .seconds(2.2))
             capture(name: name, in: directory)
+            if name == "1-terminal", let session = project.terminal(for: mainPath) {
+                try? session.visibleText().write(to: directory.appendingPathComponent("1-terminal.txt"), atomically: true, encoding: .utf8)
+            }
             print("snapshot \(name) after \(String(format: "%.1f", Date().timeIntervalSince(start)))s")
         }
-        let themes = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 420), styleMask: [.titled], backing: .buffered, defer: false)
-        themes.contentView = NSHostingView(rootView: AppearanceSettings().padding(20).frame(width: 560).background(Color(nsColor: .windowBackgroundColor)))
-        themes.orderFront(nil)
+        let settings = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 420), styleMask: [.titled], backing: .buffered, defer: false)
+        settings.contentView = NSHostingView(rootView: AppearanceSettings().padding(20).frame(width: 620).background(Color(nsColor: .windowBackgroundColor)))
+        settings.orderFront(nil)
         try? await Task.sleep(for: .seconds(1))
-        if let view = themes.contentView { write(view: view, to: directory.appendingPathComponent("8-themes.png")) }
-        themes.close()
-        WindowOpener.openWindow?(id: "update")
-        await Updater.shared.check(userInitiated: true)
-        try? await Task.sleep(for: .seconds(1))
-        if let update = NSApp.windows.first(where: { $0.title == "Software Update" && $0.isVisible }), let view = update.contentView?.superview {
-            write(view: view, to: directory.appendingPathComponent("9-update.png"))
-        }
-        WindowOpener.openWindow?(id: "welcome")
-        try? await Task.sleep(for: .seconds(1.5))
-        if let welcome = NSApp.windows.first(where: { $0.title == "Welcome to Forest" && $0.isVisible }), let view = welcome.contentView?.superview {
-            write(view: view, to: directory.appendingPathComponent("0-welcome.png"))
-        }
+        if let view = settings.contentView { write(view: view, to: directory.appendingPathComponent("10-themes.png")) }
+        settings.close()
         NSApp.terminate(nil)
     }
 
     private static func capture(name: String, in directory: URL) {
-        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.title != "Welcome to Forest" && $0.contentView != nil && $0.frame.width > 800 }),
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.identifier?.rawValue.contains("main") == true })
+                ?? NSApp.windows.first(where: { $0.isVisible && $0.title != "Welcome to Forest" && $0.contentView != nil && $0.frame.width > 800 }),
               let frameView = window.contentView?.superview else { return }
         write(view: frameView, to: directory.appendingPathComponent("\(name).png"))
         if let sheet = window.attachedSheet, let sheetView = sheet.contentView?.superview {

@@ -35,8 +35,8 @@ enum Theme {
     static let forestGradient = LinearGradient(colors: [Color(red: 0.16, green: 0.72, blue: 0.50), Color(red: 0.08, green: 0.45, blue: 0.52)],
                                                startPoint: .topLeading, endPoint: .bottomTrailing)
 
-    static let added = Color(nsColor: CodeTheme.forest.addedText)
-    static let removed = Color(nsColor: CodeTheme.forest.removedText)
+    static let added = Color(nsColor: CodeTheme.automatic.addedText)
+    static let removed = Color(nsColor: CodeTheme.automatic.removedText)
 
     static func color(for status: ChangeStatus) -> Color {
         switch status {

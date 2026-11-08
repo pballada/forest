@@ -22,6 +22,7 @@ private enum Layout {
 struct CommitList: View {
     @Bindable var store: RepoStore
     @FocusState private var focused: Bool
+    @Environment(\.theme) private var theme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,7 +48,7 @@ struct CommitList: View {
                 list
             }
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(theme.canvasColor)
     }
 
     private var header: some View {

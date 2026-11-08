@@ -237,6 +237,19 @@ public struct Worktree: Identifiable, Hashable, Sendable {
     public let isPrunable: Bool
     public let isMain: Bool
 
+    public init(path: String, head: String?, branch: String?, isBare: Bool, isDetached: Bool, isLocked: Bool,
+                lockReason: String?, isPrunable: Bool, isMain: Bool) {
+        self.path = path
+        self.head = head
+        self.branch = branch
+        self.isBare = isBare
+        self.isDetached = isDetached
+        self.isLocked = isLocked
+        self.lockReason = lockReason
+        self.isPrunable = isPrunable
+        self.isMain = isMain
+    }
+
     public var id: String { path }
     public var name: String { (path as NSString).lastPathComponent }
     public var url: URL { URL(fileURLWithPath: path) }

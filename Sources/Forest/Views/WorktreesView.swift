@@ -145,8 +145,8 @@ struct WorktreeCard: View {
 
     private var status: WorktreeStatus? { store.worktreeStatus[worktree.path] }
     private var session: ClaudeSessionInfo? { store.claudeSessions[worktree.path] }
-    private var isCurrent: Bool { store.currentWorktree?.path == worktree.path }
-    private var highlighted: Bool { store.sidebar == .worktree(worktree.path) }
+    private var isCurrent: Bool { false }
+    private var highlighted: Bool { false }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -314,18 +314,15 @@ struct WorktreeCard: View {
 
     private var actions: some View {
         HStack(spacing: 2) {
-            if !isCurrent {
-                Button(action: open) { Label("Open", systemImage: "macwindow") }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-            }
+            Button(action: open) { Label("Open", systemImage: "arrow.right.circle") }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             if !worktree.isMain, worktree.branch != nil, worktree.branch != store.mainWorktree?.branch {
                 Button { store.sheet = .review(worktree) } label: { Label("Review", systemImage: "eye") }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .help("See everything this worktree changed, ask Claude for a review, and send feedback")
             }
-            HoverButton(systemImage: "terminal", help: "Open in \(Preferences.terminal.rawValue)") { Launcher.openTerminal(at: worktree.url) }
             HoverButton(systemImage: "chevron.left.forwardslash.chevron.right", help: "Open in \(Preferences.editor.rawValue)") { Launcher.openInEditor(worktree.url) }
             HoverButton(systemImage: "folder", help: "Reveal in Finder") { Launcher.revealInFinder(worktree.url) }
             Spacer()
@@ -336,7 +333,10 @@ struct WorktreeCard: View {
                 .truncationMode(.head)
                 .frame(maxWidth: 160, alignment: .trailing)
                 .help(worktree.path)
-            Button { Launcher.launchClaude(in: worktree.url, continuing: session != nil) } label: {
+            Button {
+                store.project?.continueLatest(in: worktree.path)
+                open()
+            } label: {
                 Label(session == nil ? "Launch Claude" : "Continue", systemImage: "sparkles")
             }
             .buttonStyle(.borderedProminent)
@@ -355,7 +355,8 @@ struct WorktreeCard: View {
     }
 
     private func open() {
-        WindowOpener.open(worktree.url)
+        guard let project = store.project else { return }
+        WorkspaceStore.shared.select(project: project, worktree: worktree.path)
     }
 }
 
@@ -364,14 +365,9 @@ struct WorktreeMenuItems: View {
     let worktree: Worktree
 
     var body: some View {
-        Button("Open in New Window") { WindowOpener.open(worktree.url) }
-        Button("Open in \(Preferences.terminal.rawValue)") { Launcher.openTerminal(at: worktree.url) }
         Button("Open in \(Preferences.editor.rawValue)") { Launcher.openInEditor(worktree.url) }
+        Button("Open in \(Preferences.terminal.rawValue)") { Launcher.openTerminal(at: worktree.url) }
         Button("Reveal in Finder") { Launcher.revealInFinder(worktree.url) }
-        Button("Launch Claude Code") { Launcher.launchClaude(in: worktree.url) }
-        if store.claudeSessions[worktree.path] != nil {
-            Button("Continue Claude Session") { Launcher.launchClaude(in: worktree.url, continuing: true) }
-        }
         Button("Copy Path") { copy(worktree.path) }
         if !worktree.isMain, let branch = worktree.branch {
             Divider()

@@ -5,9 +5,10 @@ import Foundation
 final class FileWatcher {
     private var stream: FSEventStreamRef?
     private let paths: [String]
-    private let handler: () -> Void
+    private let handler: ([String]) -> Void
 
-    init(paths: [String], handler: @escaping () -> Void) {
+    /// `handler` receives the relevant paths that changed (files, with file-level events).
+    init(paths: [String], handler: @escaping ([String]) -> Void) {
         self.paths = paths
         self.handler = handler
     }
@@ -22,8 +23,9 @@ final class FileWatcher {
             guard let info else { return }
             let watcher = Unmanaged<FileWatcher>.fromOpaque(info).takeUnretainedValue()
             let paths = unsafeBitCast(eventPaths, to: NSArray.self) as? [String] ?? []
-            if paths.prefix(count).contains(where: FileWatcher.isRelevant) {
-                watcher.handler()
+            let relevant = paths.prefix(count).filter(FileWatcher.isRelevant)
+            if !relevant.isEmpty {
+                watcher.handler(Array(relevant))
             }
         }
         let flags = UInt32(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagNoDefer)

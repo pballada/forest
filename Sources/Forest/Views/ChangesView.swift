@@ -279,6 +279,7 @@ private func appendToGitignore(_ path: String, root: URL) async throws {
 }
 
 struct CommitComposer: View {
+    @Environment(\.theme) private var theme
     @Bindable var store: RepoStore
     @FocusState private var summaryFocused: Bool
 
@@ -339,7 +340,7 @@ struct CommitComposer: View {
             }
         }
         .padding(12)
-        .background(.bar)
+        .background(theme.sidebarColor)
     }
 
     private var commitTitle: String {

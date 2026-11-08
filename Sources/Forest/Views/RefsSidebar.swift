@@ -2,33 +2,16 @@ import ForestCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct SidebarView: View {
+/// Branches, remotes, tags and stashes of a worktree, beside its history.
+struct RefsSidebar: View {
     @Bindable var store: RepoStore
     @State private var filter = ""
     @AppStorage("sidebar.remotesExpanded") private var remotesExpanded = true
     @AppStorage("sidebar.tagsExpanded") private var tagsExpanded = false
+    @Environment(\.theme) private var theme
 
     var body: some View {
         List(selection: Binding<SidebarItem?>(get: { store.sidebar }, set: { if let item = $0 { select(item) } })) {
-            Section {
-                workspaceRow(.terminal, title: "Terminal", systemImage: "terminal", count: 0, color: Theme.claude)
-                workspaceRow(.changes, title: "Changes", systemImage: "pencil.and.list.clipboard", count: store.status.changeCount, color: .orange)
-                workspaceRow(.history, title: "History", systemImage: "clock.arrow.circlepath", count: 0, color: Theme.leaf)
-                workspaceRow(.worktrees, title: "Worktrees", systemImage: "square.stack.3d.up.fill", count: store.worktrees.count > 1 ? store.worktrees.count : 0,
-                             color: .teal, accessory: store.activeAgents > 0 ? AnyView(PulsingDot(color: Theme.claude)) : nil)
-            } header: {
-                Text("Workspace")
-            }
-
-            if store.worktrees.count > 1 {
-                Section("Worktrees") {
-                    ForEach(store.worktrees) { worktree in
-                        WorktreeSidebarRow(store: store, worktree: worktree)
-                            .tag(SidebarItem.worktree(worktree.path))
-                    }
-                }
-            }
-
             Section("Branches") {
                 ForEach(filtered(store.localBranches)) { branch in
                     BranchRow(branch: branch, pullRequest: store.pullRequest(for: branch.name))
@@ -118,6 +101,8 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .background(theme.sidebarColor)
         .safeAreaInset(edge: .bottom) {
             HStack(spacing: 6) {
                 Image(systemName: "line.3.horizontal.decrease").foregroundStyle(.secondary)
@@ -146,26 +131,6 @@ struct SidebarView: View {
             store.alert = AlertMessage(title: "Drop onto the current branch",
                                        message: "Drag a branch onto “\(store.status.branch ?? "HEAD")” to merge it, or drag “\(store.status.branch ?? "HEAD")” onto another branch to rebase onto it.")
         }
-    }
-
-    private func workspaceRow(_ item: SidebarItem, title: String, systemImage: String, count: Int, color: Color,
-                              accessory: AnyView? = nil) -> some View {
-        HStack {
-            Label {
-                Text(title)
-            } icon: {
-                Image(systemName: systemImage).foregroundStyle(color)
-            }
-            Spacer()
-            accessory
-            if count > 0 {
-                Text("\(count)")
-                    .font(.caption.weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .tag(item)
     }
 
     private func filtered(_ branches: [Branch]) -> [Branch] {
@@ -245,39 +210,6 @@ struct AheadBehind: View {
     }
 }
 
-private struct WorktreeSidebarRow: View {
-    let store: RepoStore
-    let worktree: Worktree
-
-    var body: some View {
-        let status = store.worktreeStatus[worktree.path]
-        let session = store.claudeSessions[worktree.path]
-        HStack(spacing: 6) {
-            Label {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(worktree.isMain ? "\(worktree.name) (main)" : worktree.name).lineLimit(1)
-                    if worktree.isClaude, let title = session?.title ?? session?.task {
-                        Text(title).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                }
-            } icon: {
-                if worktree.isClaude {
-                    Image(systemName: "sparkles").foregroundStyle(Theme.claude)
-                } else {
-                    Image(systemName: worktree.isMain ? "house" : "square.stack.3d.up").foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 4)
-            if session?.isActive == true { PulsingDot(color: Theme.claude) }
-            if worktree.isLocked { Image(systemName: "lock.fill").font(.caption2).foregroundStyle(.tertiary) }
-            if let status, status.isDirty {
-                Circle().fill(Color.orange).frame(width: 6, height: 6).help("Uncommitted changes")
-            }
-        }
-        .contextMenu { WorktreeMenuItems(store: store, worktree: worktree) }
-    }
-}
-
 /// Context menu shared by sidebar rows and the history view.
 struct BranchMenuItems: View {
     let store: RepoStore
@@ -301,7 +233,7 @@ struct BranchMenuItems: View {
             Button("Open Pull Request #\(pr.number)") { Launcher.openURL(pr.url) }
         }
         if let path = branch.worktreePath, !branch.isHead {
-            Button("Open Worktree") { WindowOpener.open(URL(fileURLWithPath: path)) }
+            Button("Show Worktree") { WindowOpener.open(URL(fileURLWithPath: path)) }
         }
         Divider()
         if !branch.isRemote {

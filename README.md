@@ -1,105 +1,258 @@
 <p align="center"><img src="Resources/AppIcon.png" width="128" alt="Forest icon"></p>
 
 <h1 align="center">Forest</h1>
+
 <p align="center"><b>One window for your coding agents: their terminals, their changes, and a native Git client.</b></p>
+
+<p align="center">
+  <a href="https://github.com/pballada/forest/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/pballada/forest?style=flat-square&color=2f9e5e&label=release"></a>
+  <a href="https://github.com/pballada/forest/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/pballada/forest/total?style=flat-square&color=2f9e5e"></a>
+  <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-555?style=flat-square&logo=apple&logoColor=white">
+  <img alt="Apple silicon" src="https://img.shields.io/badge/Apple%20silicon-native-555?style=flat-square">
+  <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white">
+  <img alt="Notarized" src="https://img.shields.io/badge/notarized-Developer%20ID-555?style=flat-square">
+</p>
+<p align="center">
+  <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-first--class-D97757?style=flat-square">
+  <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-555?style=flat-square">
+  <img alt="Gemini CLI" src="https://img.shields.io/badge/Gemini%20CLI-supported-4285F4?style=flat-square">
+  <a href="https://ghostty.org"><img alt="Terminal by Ghostty" src="https://img.shields.io/badge/terminal-Ghostty-3551F3?style=flat-square"></a>
+  <a href="https://github.com/pballada/forest/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/pballada/forest?style=flat-square&color=555"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/pballada/forest/releases/latest"><b>Download for macOS</b></a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#keyboard-shortcuts">Shortcuts</a> ·
+  <a href="#help">Help</a> ·
+  <a href="#build-from-source">Build</a>
+</p>
 
 ![Forest: agents in the sidebar, an embedded Ghostty terminal, live changes on the right](docs/screenshots/workspace.png)
 
-Forest replaces a terminal tab per worktree, a separate Git app and a separate diff tool. Every project lives in one
-window: the sidebar lists the main checkout and each agent worktree (`.claude/worktrees/<name>`) with what its agent
-is doing, the middle shows that worktree's terminal, changes or history, and the right panel shows files changing as
-the agent writes them. Claude Code is the first-class citizen; Codex, Gemini CLI or any command work too.
+Running several coding agents usually means a terminal tab per worktree, a Git app somewhere else and a diff tool on
+top. Forest puts them in one place:
+
+- **Left**: every project, its main checkout and each agent's worktree, with what the agent is doing right now.
+- **Middle**: that worktree's **terminal** (real Ghostty), its **changes**, or its **history**.
+- **Right**: files appearing **live** as the agent writes them, with Review and Merge one click away.
+
+Claude Code is the first-class citizen; Codex, Gemini CLI or any command run just as well.
+
+## Install
+
+1. [Download the latest `Forest-<version>.dmg`](https://github.com/pballada/forest/releases/latest) and drag Forest to
+   Applications. Builds are signed and notarized by Apple, and Forest updates itself from GitHub Releases.
+2. Have at least one agent CLI on your machine: [Claude Code](https://docs.claude.com/en/docs/claude-code),
+   [Codex](https://github.com/openai/codex) or [Gemini CLI](https://github.com/google-gemini/gemini-cli).
+3. Optional: the [GitHub CLI](https://cli.github.com) (`gh auth login`) for pull requests and CI status.
+
+Requires macOS 14 or later on Apple silicon. Forest uses your own `git`, so hooks, credential helpers, LFS, signing
+and config behave exactly as on the command line.
+
+## Quick start
+
+1. **Add a project** (⌘O), or drop a repository folder on Forest's Dock icon.
+2. **New Agent** (⌘N): describe the task, pick Claude Code, Codex or Gemini, and Forest creates
+   `.claude/worktrees/<name>` on its own branch and starts the agent there.
+3. Watch it work in the terminal while files light up in **Live Changes**. A **!** on its row (and the Dock badge)
+   means it's waiting for you.
+4. **Review** (⇧⌘R) what it changed against main, send feedback straight into its session, then **Merge** or push a PR.
+5. Quit whenever you like: next time, the agent's card offers **Continue** (↩) to resume that exact conversation.
 
 ## Features
 
-**Agents and sessions**
-- **One window, every project**: projects and their agents in the sidebar, each row showing whether Claude is working,
-  waiting for you, open or not running, plus the conversation's title and the number of changed files. ⌘1…⌘9 and
-  ⌃Tab jump between them like terminal tabs
-- **Embedded Ghostty terminal** per worktree (libghostty, Metal-rendered), using your Ghostty config for fonts and
-  keys, coloured by Forest's theme. ⌘D adds a shell underneath
-- **Continue sessions easily**: a worktree without a running terminal offers to continue its last conversation
-  (`claude --resume <id>`), pick an earlier one, or start a new one with a task. After a relaunch everything is one
-  click (or ↩) away
-- **New Agent** (⌘N): describe a task and Forest creates `.claude/worktrees/<name>` on `worktree-<name>` and starts
-  the agent there with that task: **Claude Code, Codex, Gemini CLI** or a custom command (default in Settings › Agents)
-- Claude conversations are listed by title from their transcripts; Codex and Gemini sessions continue with
-  `codex resume --last` and `gemini --resume latest` in the worktree
-- **Live changes**: files appear in the right panel the moment they're written, freshest first and briefly lit,
-  with what the branch already committed on top of main, and Review / Merge at hand
-- **Review an agent's work**: every commit and file it changed against main (uncommitted work included), a one-click
-  Claude review, and feedback typed straight into the agent's running session
-- Dock badge and a "!" on the row when an agent rings the bell or posts a notification
-- Merge into main, push & open a PR, lock, or remove the worktree and branch in one step
+### Agents and sessions
+- **One window, every project**: each row shows whether the agent is working, waiting for you, open or not running,
+  plus its conversation's title and how many files it has changed. ⌘1…⌘9 and ⌃Tab jump between them like tabs.
+- **Continue sessions easily**: a worktree without a running terminal lists its Claude conversations by title, so you
+  can resume the last one (`claude --resume <id>`), pick an earlier one, or start fresh with a task. Codex and Gemini
+  continue with `codex resume --last` and `gemini --resume latest`.
+- **Any agent**: Claude Code, Codex, Gemini CLI or a custom command, chosen per agent or by default in
+  Settings › Agents.
+- Merge into main, push and open a PR, lock, or remove the worktree and branch in one step.
 
-**Claude helpers** (use your Claude Code login, run with tools disabled)
-- ✨ **Write the commit message** from the staged changes, following your repo's conventions (⌥⌘M)
-- **Explain a commit**: what it does and what to watch out for, right in History
-- **Resolve conflicts with Claude**: hands the conflicted files to Claude Code; you review before continuing
+### A real terminal, embedded
+- Every worktree gets a [Ghostty](https://ghostty.org) terminal (libghostty, GPU-rendered) that reads your Ghostty
+  config for fonts and keybindings and wears Forest's theme. ⌘D adds a shell underneath.
+- Terminals keep running while you switch between worktrees: no lost scrollback.
 
-**Diffs that stay fast**
-- A custom renderer draws only what's on screen: 100 000-line files scroll smoothly
-- Unified or side-by-side, word-level highlights, syntax colours, wrap, whole-file view, hide whitespace
-- Overview ruler and next/previous change (⌥⌘↓ / ⌥⌘↑)
-- **Xcode projects in plain words**: `project.pbxproj` changes are summarised as files added and removed, target membership, packages and build settings (old → new)
-- Lockfiles (`Package.resolved`, `package-lock.json`, `yarn.lock`, …) collapse by default
-- Images compare side by side or with a swipe slider
-- Stage, unstage or discard hunks or **individual lines**: click, drag or ⇧-click lines, then use the hunk buttons or right-click
+### Live changes, review and compare
+- **Live Changes**: files appear the moment they're written, freshest first and briefly lit, with line counts and what
+  the branch has already committed on top of main.
+- **Review an agent**: every commit and file it changed against main (uncommitted work included), a one-click Claude
+  review, and feedback typed straight into its running session.
+- **Compare** (⌥⌘C) two branches, two agents' worktrees (fully, or only since they diverged), or any two files on disk.
 
-**Everything Git**
-- Commit graph with colored lanes, ref badges, search, keyboard navigation, and "show only this branch"
-- Commit, amend, and commit & push, with a little celebration
-- **Undo** (⌥⌘Z, or the toast's Undo button) for commits, discards, checkouts, branch deletes, merges, rebases, cherry-picks, reverts, pulls, resets and stashes
-- Drag a branch onto the current one to merge it, or the current branch onto another to rebase
-- Branches, remotes, tags and stashes; merge, rebase, cherry-pick, revert and reset
-- Conflict banner with ours/theirs/mark resolved, plus continue/abort
-- Fetch, pull (ff-only, merge or rebase), push with automatic upstream or force-with-lease
-- ⌘K command palette, live refresh through FSEvents, clone/init/open, drag-and-drop folders
-- **Compare** (⌥⌘C) two branches or two agents' worktrees (fully, or only since they diverged), or any two files on disk
-- Themes for the whole window, diffs and terminal: Forest Night and Day (Automatic follows the system), Solarized Dark
-  (default) and Light, Tokyo Night, Catppuccin Mocha and Latte, Rosé Pine, Nord, Gruvbox, Dracula, One Dark, Monokai,
-  GitHub Dark and Light
-- Updates itself from GitHub Releases, installing only builds signed by the same developer and notarized by Apple
+### A complete Git client
+- Commit graph with coloured lanes, ref badges, search and "show only this branch"; branches, remotes, tags and
+  stashes beside it.
+- Commit, amend, commit & push; stage, unstage or discard hunks or **individual lines**.
+- **Undo** (⌥⌘Z) for commits, discards, checkouts, branch deletes, merges, rebases, cherry-picks, reverts, pulls, resets
+  and stashes.
+- Drag a branch onto the current one to merge, or the current one onto another to rebase. Conflict banner with
+  ours/theirs, continue and abort.
+- Claude helpers that use your Claude Code login: **write the commit message** (⌥⌘M), **explain a commit**, **resolve
+  conflicts**.
+
+### Diffs that stay fast
+- A custom renderer draws only what's on screen: 100 000-line files scroll smoothly.
+- Unified or side by side, word-level highlights, syntax colours, wrap, whole-file view, hide whitespace.
+- `project.pbxproj` changes in plain words (files, targets, packages, build settings); lockfiles collapsed; images side
+  by side or with a swipe slider.
+
+### Themes
+One theme for the whole window, diffs and terminal: **Forest Night** and **Forest Day** (Automatic follows the system),
+Solarized Dark and Light, Tokyo Night, Catppuccin Mocha and Latte, Rosé Pine, Nord, Gruvbox, Dracula, One Dark, Monokai,
+GitHub Dark and Light. Each comes with a tuned terminal palette, and selections stay readable in all of them.
+
+## Gallery
 
 | Continue where you left off | All agents of a project |
 |---|---|
 | ![Session launcher](docs/screenshots/sessions.png) | ![Worktrees overview](docs/screenshots/worktrees.png) |
 
-| History, with branches beside the graph | Forest Day theme |
+| History, with branches beside the graph | Forest Day |
 |---|---|
-| ![History](docs/screenshots/history.png) | ![Forest Day](docs/screenshots/workspace-light.png) |
+| ![History](docs/screenshots/history.png) | ![Forest Day theme](docs/screenshots/workspace-light.png) |
 
 | Reviewing an agent | Compare |
 |---|---|
 | ![Agent review](docs/screenshots/agent-review.png) | ![Compare](docs/screenshots/compare.png) |
 
-## Build & run
+| New agent | Command palette |
+|---|---|
+| ![New agent sheet](docs/screenshots/new-agent-sheet.png) | ![Command palette](docs/screenshots/command-palette.png) |
 
-Requires macOS 14+, Xcode 16+ (Swift 6 toolchain) and [Zig](https://ziglang.org) for libghostty (`brew install zig`;
+## Keyboard shortcuts
+
+<details>
+<summary>Show all shortcuts</summary>
+
+| Shortcut | Action |
+|---|---|
+| ⌘N | New agent |
+| ⌘O | Add project |
+| ⌘1 … ⌘9 · ⌃Tab / ⌃⇧Tab | Go to worktree n · next / previous |
+| ⌥⌘1 / ⌥⌘2 / ⌥⌘3 | Terminal / Changes / History |
+| ⇧⌘↩ | Continue the last session |
+| ⌘D | Shell under the terminal |
+| ⌥⌘0 | Show or hide Live Changes |
+| ⇧⌘R | Review agent |
+| ⌥⌘C | Compare |
+| ⌘K | Command palette |
+| ⌘↩ | Commit |
+| ⌥⌘M | Write commit message with Claude |
+| ⌥⌘Z | Undo last action |
+| ⌥⌘↓ / ⌥⌘↑ | Next / previous change in a diff |
+| ⇧⌘F / ⇧⌘P / ⇧⌘U | Fetch / Pull / Push |
+| ⇧⌘B | New branch |
+| ⌥⌘S | Stash |
+| Space / double-click | Stage or unstage selected files |
+| Esc | Clear the line selection in a diff |
+
+Inside a terminal every other key goes to the program, and your Ghostty keybindings (copy, paste, font size…) work as
+usual.
+</details>
+
+## Help
+
+### Concepts
+- **Project**: a Git repository you added. Its **main checkout** is the folder you opened.
+- **Agent**: a worktree in `.claude/worktrees/<name>` on branch `worktree-<name>`, where one agent works without
+  touching your checkout. It's the same layout `claude --worktree` uses, so agents you start from the command line
+  show up in Forest too.
+- **Session**: a conversation with the agent. Claude Code records each one in `~/.claude/projects`; Forest reads them
+  (read-only) to show titles and to resume them.
+- **Row states**: a pulsing dot means *working*, an orange **!** means *waiting for you* (a permission prompt, a
+  question, the bell), a hollow ring means *open and idle*, and a grey ring means *not running* (Continue brings it
+  back).
+
+### FAQ
+
+<details>
+<summary><b>Do I need Ghostty installed?</b></summary>
+
+No. The terminal engine is built into Forest. If you do use Ghostty, Forest reads your `~/.config/ghostty/config`
+for fonts and keybindings; colours follow Forest's theme unless you turn on *Use my Ghostty colours* in
+Settings › Terminal.
+</details>
+
+<details>
+<summary><b>What happens to running agents when I quit Forest?</b></summary>
+
+Their terminals close with Forest, but nothing is lost: the conversation is saved by the agent itself. Select the
+worktree and press ↩ on **Continue** to pick up exactly where it stopped (`claude --resume <id>`, `codex resume
+--last` or `gemini --resume latest`).
+</details>
+
+<details>
+<summary><b>Can I use my own git worktrees (outside <code>.claude/worktrees</code>)?</b></summary>
+
+Forest focuses on agent worktrees and the main checkout, so other linked worktrees aren't listed. Branches checked out
+in them still say so, and git commands keep working as usual.
+</details>
+
+<details>
+<summary><b>Which keys does Forest keep for itself inside the terminal?</b></summary>
+
+⌘N, ⌘O, ⌘K, ⌘D, ⌘1…⌘9, ⌃Tab and the ⌥⌘ shortcuts above. Everything else, including your own Ghostty keybindings,
+goes to the terminal.
+</details>
+
+<details>
+<summary><b>Is anything sent anywhere?</b></summary>
+
+Only what you ask for: the Claude helpers (commit message, explain, review) send the relevant diff to Claude through
+your own Claude Code login, and update checks read the GitHub Releases API. Agents themselves run with your CLI and
+your account.
+</details>
+
+### Troubleshooting
+
+| Problem | Try this |
+|---|---|
+| "claude: command not found" in the terminal | Install the CLI, or set its path in Settings › Agents. The terminal runs your login shell, so it uses your usual `PATH`. |
+| An agent's row never shows *working* | Claude Code reports progress to the terminal; if it doesn't, Forest falls back to the transcript, which can take a few seconds. Make sure the session runs inside Forest's terminal. |
+| No titles in the sidebar | Titles come from Claude Code transcripts in `~/.claude/projects`. Codex and Gemini sessions show "No conversation yet" but still continue with ↩. |
+| Removing an agent fails | Quit the agent first (it may hold a lock), then Remove again; Forest force-removes locked worktrees. |
+| Pull requests or CI aren't shown | Install the GitHub CLI and run `gh auth login`, then Refresh (⌘R). |
+| Keys don't reach the program | Click inside the terminal to focus it. If a Forest shortcut clashes with a tool you use, tell us in an issue. |
+
+Still stuck? [Open an issue](https://github.com/pballada/forest/issues/new) with your macOS version, Forest version
+(Forest › About Forest) and what you did. Help › Forest Help in the app brings you back here.
+
+## Build from source
+
+<details>
+<summary>Requirements, build and release</summary>
+
+Requires macOS 14+, Xcode 16+ (Swift 6 toolchain) and [Zig](https://ziglang.org) for libghostty (`brew install zig`,
 the version Ghostty's `build.zig.zon` asks for).
 
 ```sh
 scripts/build-ghosttykit.sh   # once: builds libghostty from Ghostty's official source into Vendor/
 scripts/build-app.sh          # builds build/Forest.app (release; runs the step above if needed)
-open build/Forest.app
-open build/Forest.app --args ~/code/my-repo   # open a repo directly
+open build/Forest.app --args ~/code/my-repo
 ```
 
-To ship a signed, notarized build (`build/Forest-<version>.dmg` and `.zip`), you need a Developer ID Application
-certificate and a `notary` keychain profile (`xcrun notarytool store-credentials notary …`). Then run:
+For development use `swift run Forest` (after `scripts/build-ghosttykit.sh`) or open `Package.swift` in Xcode, and run
+the tests with `swift test`.
+
+A signed, notarized release (`build/Forest-<version>.dmg` and `.zip`) needs a Developer ID Application certificate and
+a `notary` keychain profile (`xcrun notarytool store-credentials notary …`):
 
 ```sh
-scripts/release.sh
+scripts/release.sh   # version from the latest v* tag; build number = commit count
 ```
 
-The version comes from the latest `v*` tag (default 0.2.0); the build number is the commit count.
+`FOREST_SNAPSHOT_DIR=<dir>` makes a build walk through its main screens and write PNGs (see
+`Sources/Forest/Support/Snapshotter.swift`); that's how the screenshots above are made.
+</details>
 
-For development, `swift run Forest` (after `scripts/build-ghosttykit.sh`), or open `Package.swift` in Xcode. Run tests
-with `swift test`.
-
-Optional: install the [GitHub CLI](https://cli.github.com) (`gh auth login`) to see pull requests and CI status.
-
-## Architecture
+<details>
+<summary>Architecture</summary>
 
 ```
 Sources/ForestCore      Git engine: runs the system git binary, parses porcelain output, lays out the commit
@@ -112,34 +265,15 @@ Sources/Forest          SwiftUI app: WorkspaceStore (projects, selection) → Pr
 Vendor/                 GhosttyKit.xcframework and Ghostty's shell integration + terminfo (built, not committed)
 Tests/                  Swift Testing suites, many against real temporary repositories
 ```
+</details>
 
-Forest shells out to your own `git`, so hooks, credential helpers, LFS, signing and config work exactly as they do on
-the command line.
+## Roadmap and feedback
 
-## Keyboard shortcuts
+See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next. Bugs and ideas are welcome in
+[Issues](https://github.com/pballada/forest/issues).
 
-| | |
-|---|---|
-| ⌘N | New agent |
-| ⌘1 … ⌘9 · ⌃Tab / ⌃⇧Tab | Go to worktree n · next / previous |
-| ⌥⌘1 / ⌥⌘2 / ⌥⌘3 | Terminal / Changes / History |
-| ⇧⌘↩ | Continue the last session |
-| ⌘D | Shell under the terminal |
-| ⌥⌘0 | Show or hide live changes |
-| ⌥⌘C | Compare |
-| ⇧⌘R | Review agent |
-| ⌘K | Command palette |
-| ⌘↩ | Commit |
-| ⌥⌘M | Write commit message with Claude |
-| ⌥⌘Z | Undo last action |
-| ⌥⌘↓ / ⌥⌘↑ | Next / previous change in a diff |
-| ⇧⌘F / ⇧⌘P / ⇧⌘U | Fetch / Pull / Push |
-| ⇧⌘B | New branch |
-| ⌥⌘S | Stash |
-| Space / double-click | Stage or unstage selected files |
-| Esc | Clear the line selection in a diff |
+## Credits
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next.
-
-The embedded terminal is [Ghostty](https://ghostty.org)'s libghostty (MIT licensed); its licence ships in the app
-bundle.
+The embedded terminal is [Ghostty](https://ghostty.org)'s libghostty (MIT licensed); its licence ships inside the app.
+Claude Code is a product of Anthropic, Codex of OpenAI and Gemini CLI of Google; Forest isn't affiliated with any of
+them.

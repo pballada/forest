@@ -125,6 +125,16 @@ struct ForestCommands: Commands {
             Button("About Forest") { AboutPanel.show() }
         }
 
+        CommandGroup(replacing: .help) {
+            Button("Forest Help") { Launcher.openURL(HelpLinks.help) }
+                .keyboardShortcut("?", modifiers: .command)
+            Button("Keyboard Shortcuts") { Launcher.openURL(HelpLinks.shortcuts) }
+            Button("Troubleshooting") { Launcher.openURL(HelpLinks.troubleshooting) }
+            Divider()
+            Button("What's New in Forest \(Updater.currentVersion)") { Launcher.openURL(HelpLinks.releaseNotes) }
+            Button("Report an Issue…") { Launcher.openURL(HelpLinks.newIssue) }
+        }
+
         CommandGroup(after: .appInfo) {
             Button("Check for Updates…") {
                 openWindow(id: "update")
@@ -246,7 +256,7 @@ enum AboutPanel {
         add("Claude Code · Codex · Gemini CLI\n", small, .secondaryLabelColor)
         add("GitHub", small, link: URL(string: "https://github.com/pballada/forest"))
         add("  ·  ", small, .tertiaryLabelColor)
-        add("Issues", small, link: URL(string: "https://github.com/pballada/forest/issues"))
+        add("Help", small, link: HelpLinks.help)
         add("  ·  ", small, .tertiaryLabelColor)
         add("What's new", small, link: URL(string: "https://github.com/pballada/forest/releases/tag/v\(Updater.currentVersion)"))
         add("\nTerminal by Ghostty (MIT)", .systemFont(ofSize: 10), .tertiaryLabelColor)
@@ -258,5 +268,21 @@ enum AboutPanel {
             .version: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "",
             NSApplication.AboutPanelOptionKey(rawValue: "Copyright"): "© 2026 Pau Ballada",
         ])
+    }
+}
+
+/// Help lives in the README on GitHub, so it's always current.
+@MainActor
+enum HelpLinks {
+    static let repository = URL(string: "https://github.com/pballada/forest")!
+    static let help = URL(string: "https://github.com/pballada/forest#help")!
+    static let shortcuts = URL(string: "https://github.com/pballada/forest#keyboard-shortcuts")!
+    static let troubleshooting = URL(string: "https://github.com/pballada/forest#troubleshooting")!
+    static var releaseNotes: URL { URL(string: "https://github.com/pballada/forest/releases/tag/v\(Updater.currentVersion)")! }
+    static var newIssue: URL {
+        var components = URLComponents(string: "https://github.com/pballada/forest/issues/new")!
+        let system = ProcessInfo.processInfo.operatingSystemVersionString
+        components.queryItems = [URLQueryItem(name: "body", value: "**What happened**\n\n\n**What I expected**\n\n\n---\nForest \(Updater.currentVersion), macOS \(system)")]
+        return components.url!
     }
 }

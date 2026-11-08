@@ -49,6 +49,13 @@ Claude Code is the first-class citizen; Codex, Gemini CLI or any command run jus
    [Codex](https://github.com/openai/codex) or [Gemini CLI](https://github.com/google-gemini/gemini-cli).
 3. Optional: the [GitHub CLI](https://cli.github.com) (`gh auth login`) for pull requests and CI status.
 
+Or with Homebrew:
+
+```sh
+brew tap pballada/tap
+brew install --cask forest
+```
+
 Requires macOS 14 or later on Apple silicon. Forest uses your own `git`, so hooks, credential helpers, LFS, signing
 and config behave exactly as on the command line.
 

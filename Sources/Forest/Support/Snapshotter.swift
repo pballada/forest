@@ -61,6 +61,16 @@ enum Snapshotter {
                 workspace.select(project: project, worktree: agent.path)
                 project.store(for: agent.path).sidebar = .terminal
             }))
+            if ProcessInfo.processInfo.environment["FOREST_SNAPSHOT_LAUNCH"] != nil {
+                steps.append(("5-agent-launched", {
+                    project.launch(.newSession(prompt: "Fix the login timeout"), in: agent.path)
+                }))
+                steps.append(("5-agent-text", {
+                    if let text = project.terminal(for: agent.path)?.visibleText() {
+                        try? text.write(to: directory.appendingPathComponent("5-agent.txt"), atomically: true, encoding: .utf8)
+                    }
+                }))
+            }
             steps.append(("6-review", { project.main.sheet = .review(agent) }))
             steps.append(("6-compare", {
                 project.main.sheet = nil

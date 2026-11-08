@@ -84,7 +84,7 @@ struct SidebarView: View {
                                 if let remote = store.remotes.first {
                                     Button("Push to \(remote.name)") { store.run("Pushing tag", success: "Pushed \(tag.name)") { try await store.repository.pushTag(tag.name, remote: remote.name) } }
                                 }
-                                Button("Create Worktree…") { store.sheet = .newWorktree(base: tag.name, claude: false) }
+                                Button("New Claude Agent from Here…") { store.sheet = .newAgent(base: tag.name) }
                                 Divider()
                                 Button("Delete Tag…", role: .destructive) { store.deleteTag(tag) }
                             }
@@ -295,8 +295,7 @@ struct BranchMenuItems: View {
         }
         Divider()
         Button("New Branch from Here…") { store.sheet = .newBranch(start: branch.name) }
-        Button("New Worktree from Here…") { store.sheet = .newWorktree(base: branch.name, claude: false) }
-        Button("New Claude Agent from Here…") { store.sheet = .newWorktree(base: branch.name, claude: true) }
+        Button("New Claude Agent from Here…") { store.sheet = .newAgent(base: branch.name) }
         if let pr = store.pullRequest(for: branch.nameWithoutRemote) {
             Button("Open Pull Request #\(pr.number)") { Launcher.openURL(pr.url) }
         }

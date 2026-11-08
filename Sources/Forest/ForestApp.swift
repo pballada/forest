@@ -165,9 +165,7 @@ struct ForestCommands: Commands {
             Button("Stash Changes…") { store?.sheet = .stash }.keyboardShortcut("s", modifiers: [.command, .option])
             Divider()
             Button("New Branch…") { store?.sheet = .newBranch(start: nil) }.keyboardShortcut("b", modifiers: [.command, .shift])
-            Button("New Worktree…") { store?.sheet = .newWorktree(base: nil, claude: false) }
-                .keyboardShortcut("t", modifiers: [.command, .shift])
-            Button("New Claude Agent…") { store?.sheet = .newWorktree(base: nil, claude: true) }
+            Button("New Claude Agent…") { store?.sheet = .newAgent(base: nil) }
                 .keyboardShortcut("n", modifiers: [.command, .option])
             Divider()
             Button("Open in Terminal") { if let s = store { Launcher.openTerminal(at: s.repository.root) } }

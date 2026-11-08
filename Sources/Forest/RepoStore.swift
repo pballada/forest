@@ -14,7 +14,7 @@ enum SheetKind: Identifiable {
     case newBranch(start: String?)
     case renameBranch(Branch)
     case newTag(sha: String)
-    case newWorktree(base: String?, claude: Bool)
+    case newAgent(base: String?)
     case stash
     case addRemote
     case review(Worktree)
@@ -24,7 +24,7 @@ enum SheetKind: Identifiable {
         case .newBranch(let s): "branch-\(s ?? "")"
         case .renameBranch(let b): "rename-\(b.id)"
         case .newTag(let s): "tag-\(s)"
-        case .newWorktree(let b, let c): "wt-\(b ?? "")-\(c)"
+        case .newAgent(let b): "agent-\(b ?? "")"
         case .stash: "stash"
         case .addRemote: "remote"
         case .review(let w): "review-\(w.path)"
@@ -210,7 +210,12 @@ final class RepoStore {
             labels = refs.labels
             remotes = (try? await remotesResult) ?? []
             stashes = (try? await stashResult) ?? []
-            worktrees = (try? await worktreeResult) ?? []
+            // Forest works with the main checkout and Claude's worktrees; other git worktrees stay out of the way
+            // (branches checked out there still say so).
+            let root = repo.root.resolvingSymlinksInPath()
+            worktrees = ((try? await worktreeResult) ?? []).filter {
+                $0.isMain || $0.isClaude || $0.url.resolvingSymlinksInPath() == root
+            }
             operation = await operationResult
 
             let fingerprint = ([status.headSHA ?? ""] + refs.labels.keys.sorted()).joined(separator: ",")
@@ -729,24 +734,6 @@ final class RepoStore {
     }
 
     // MARK: - Worktrees
-
-    /// Default location for a native worktree of `branch`.
-    func suggestedWorktreePath(for branch: String) -> URL {
-        let base = mainRoot ?? repository.root
-        let slug = ClaudeCode.slug(branch.replacingOccurrences(of: "/", with: "-"))
-        if Preferences.worktreeLocation == "nested" {
-            return base.appendingPathComponent(".worktrees").appendingPathComponent(slug)
-        }
-        return base.deletingLastPathComponent().appendingPathComponent("\(base.lastPathComponent)-\(slug)")
-    }
-
-    func createWorktree(at path: URL, newBranch: String?, base: String?, detach: Bool, openAfter: Bool) {
-        run("Creating worktree", success: "Worktree ready") {
-            if path.path.contains("/.worktrees/") { try await self.repository.excludeLocally("/.worktrees/") }
-            try await self.repository.addWorktree(at: path, newBranch: newBranch, base: base, detach: detach)
-            if openAfter { WindowOpener.open(path) }
-        }
-    }
 
     /// Creates a worktree with Claude Code's own layout and starts an agent in it.
     func createClaudeWorktree(name: String, base: String?, task: String, launch: Bool) {

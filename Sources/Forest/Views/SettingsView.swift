@@ -21,7 +21,6 @@ struct SettingsView: View {
 private struct GeneralSettings: View {
     @AppStorage(SettingsKey.pullStrategy) private var pull = PullStrategy.fastForwardOnly.rawValue
     @AppStorage(SettingsKey.historyLimit) private var historyLimit = 3000
-    @AppStorage(SettingsKey.worktreeLocation) private var worktreeLocation = "sibling"
     @AppStorage(SettingsKey.celebrate) private var celebrate = true
 
     var body: some View {
@@ -32,10 +31,6 @@ private struct GeneralSettings: View {
             }
             Picker("Commits loaded at once", selection: $historyLimit) {
                 ForEach([1000, 3000, 10000, 30000], id: \.self) { Text("\($0)").tag($0) }
-            }
-            Picker("New worktree location", selection: $worktreeLocation) {
-                Text("Next to the repository (../repo-branch)").tag("sibling")
-                Text("Inside the repository (.worktrees/branch)").tag("nested")
             }
             UpdateSettings()
             LabeledContent("Git") {

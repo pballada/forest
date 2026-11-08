@@ -128,12 +128,52 @@ import Testing
             #"{"type":"ai-title","aiTitle":"Dark mode settings"}"#,
             #"{"type":"pr-link","prUrl":"https://github.com/a/b/pull/7"}"#,
         ]
-        try lines.joined(separator: "\n").write(to: dir.appendingPathComponent("s.jsonl"), atomically: true, encoding: .utf8)
-        let info = try #require(ClaudeCode.sessionInfo(for: "/tmp/proj", home: home))
+        // Claude Code ends every record with a newline; a trailing partial line is still being written.
+        try (lines.joined(separator: "\n") + "\n").write(to: dir.appendingPathComponent("s.jsonl"), atomically: true, encoding: .utf8)
+        let info = try #require(ClaudeCode.sessionInfo(for: "/tmp/proj", index: ClaudeSessionIndex(home: home)))
         #expect(info.task == "Add dark mode to settings")
         #expect(info.title == "Dark mode settings")
         #expect(info.pullRequestURL?.absoluteString == "https://github.com/a/b/pull/7")
         #expect(info.isActive)
+    }
+
+    @Test func claudeSessionsAreIncremental() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("forest-home-\(UUID().uuidString)")
+        let dir = ClaudeCode.projectDirectory(for: "/tmp/wt", home: home)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("1111.jsonl")
+        let first = [
+            #"{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":"Fix the login timeout"},"gitBranch":"worktree-login"}"#,
+            #"{"message":{"content":[{"type":"text","text":"working"}]},"type":"assistant"}"#,
+        ]
+        try (first.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
+        try #"{"parentUuid":null,"type":"user","message":{"content":"<command-name>/clear</command-name>"}}"#
+            .write(to: dir.appendingPathComponent("2222.jsonl"), atomically: true, encoding: .utf8)
+        let index = ClaudeSessionIndex(home: home)
+
+        var sessions = index.sessions(for: "/tmp/wt")
+        #expect(sessions.map(\.id) == ["1111"])
+        #expect(sessions[0].firstPrompt == "Fix the login timeout")
+        #expect(sessions[0].gitBranch == "worktree-login")
+        #expect(sessions[0].isWorking())
+
+        let more = [
+            #"{"isSidechain":false,"type":"system","subtype":"turn_duration","durationMs":10,"messageCount":4}"#,
+            #"{"type":"last-prompt","lastPrompt":"Fix the login timeout"}"#,
+            #"{"type":"ai-title","aiTitle":"Login timeout fix"}"#,
+        ]
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data((more.joined(separator: "\n") + "\n").utf8))
+        try handle.close()
+
+        sessions = index.sessions(for: "/tmp/wt")
+        #expect(sessions[0].title == "Login timeout fix")
+        #expect(sessions[0].displayTitle == "Login timeout fix")
+        #expect(sessions[0].messageCount == 4)
+        #expect(sessions[0].turnEnded)
+        #expect(!sessions[0].isWorking())
+        #expect(sessions[0].firstPrompt == "Fix the login timeout")
     }
 
     @Test func remoteWebURL() {

@@ -49,7 +49,7 @@ enum Snapshotter {
             }),
             ("6-new-agent", {
                 store.showPalette = false
-                store.sheet = .newWorktree(base: nil, claude: true)
+                store.sheet = .newAgent(base: nil)
             }),
             ("7-toast", {
                 store.sheet = nil

@@ -20,7 +20,6 @@ enum SettingsKey {
     static let claudePath = "claudePath"
     static let claudeArguments = "claudeArguments"
     static let claudeBranchPrefix = "claudeBranchPrefix"
-    static let worktreeLocation = "worktreeLocation"
     static let recentRepositories = "recentRepositories"
     static let claudeModel = "claudeModel"
     static let aiFeatures = "aiFeatures"
@@ -60,8 +59,6 @@ enum Preferences {
         DiffOptions(context: defaults.bool(forKey: SettingsKey.diffFullFile) ? DiffOptions.fullFileContext : 3,
                     ignoreWhitespace: defaults.bool(forKey: SettingsKey.diffIgnoreWhitespace))
     }
-    /// "sibling" puts native worktrees next to the repo (`../repo-branch`), "nested" inside `.worktrees/`.
-    static var worktreeLocation: String { defaults.string(forKey: SettingsKey.worktreeLocation) ?? "sibling" }
 }
 
 /// Recently opened repositories, most recent first.

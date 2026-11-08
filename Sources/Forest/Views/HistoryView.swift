@@ -279,8 +279,7 @@ struct CommitMenuItems: View {
         Button("Check Out Commit…") { store.checkout(commit: commit) }
         Button("New Branch Here…") { store.sheet = .newBranch(start: commit.sha) }
         Button("New Tag Here…") { store.sheet = .newTag(sha: commit.sha) }
-        Button("New Worktree Here…") { store.sheet = .newWorktree(base: commit.sha, claude: false) }
-        Button("New Claude Agent Here…") { store.sheet = .newWorktree(base: commit.sha, claude: true) }
+        Button("New Claude Agent Here…") { store.sheet = .newAgent(base: commit.sha) }
         Divider()
         Button("Cherry-pick onto “\(branch)”") { store.cherryPick(commit) }
         Button("Revert Commit") { store.revert(commit) }

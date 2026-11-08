@@ -225,14 +225,13 @@ struct RepoToolbar: ToolbarContent {
                 .disabled(store.status.isClean)
 
             Menu {
-                Button { store.sheet = .newWorktree(base: nil, claude: true) } label: { Label("New Claude Agent…", systemImage: "sparkles") }
-                Button { store.sheet = .newWorktree(base: nil, claude: false) } label: { Label("New Worktree…", systemImage: "square.stack.3d.up") }
+                Button { store.sheet = .newAgent(base: nil) } label: { Label("New Claude Agent…", systemImage: "sparkles") }
                 Divider()
                 Button { Launcher.launchClaude(in: store.repository.root) } label: { Label("Launch Claude Code Here", systemImage: "terminal") }
             } label: {
                 Label("Worktree", systemImage: "square.stack.3d.up.fill")
             } primaryAction: {
-                store.sheet = .newWorktree(base: nil, claude: true)
+                store.sheet = .newAgent(base: nil)
             }
             .help("New Claude agent worktree (⌥⌘N)")
 
@@ -306,8 +305,8 @@ struct SheetHost: View {
             RenameBranchSheet(store: store, branch: branch)
         case .newTag(let sha):
             NewTagSheet(store: store, sha: sha)
-        case .newWorktree(let base, let claude):
-            NewWorktreeSheet(store: store, base: base, claude: claude)
+        case .newAgent(let base):
+            NewAgentSheet(store: store, base: base)
         case .stash:
             StashSheet(store: store)
         case .addRemote:

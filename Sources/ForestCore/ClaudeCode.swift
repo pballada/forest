@@ -2,20 +2,23 @@ import Foundation
 
 /// What Forest can learn about Claude Code activity in a worktree from `~/.claude/projects`.
 public struct ClaudeSessionInfo: Hashable, Sendable {
-    public let sessionCount: Int
-    public let lastActivity: Date?
-    /// The first prompt of the most recent session — a good proxy for "what is this agent doing".
-    public let task: String?
-    /// The title Claude Code generated for the most recent session, when available.
-    public let title: String?
-    /// Pull request opened from the session, if Claude Code recorded one.
-    public let pullRequestURL: URL?
+    /// Every session recorded in the worktree, most recent first. Never empty.
+    public let sessions: [ClaudeSession]
 
-    /// Transcripts are appended to while a session runs, so a fresh write means it is live.
-    public var isActive: Bool {
-        guard let lastActivity else { return false }
-        return Date().timeIntervalSince(lastActivity) < 90
+    public init?(sessions: [ClaudeSession]) {
+        guard !sessions.isEmpty else { return nil }
+        self.sessions = sessions
     }
+
+    public var latest: ClaudeSession { sessions[0] }
+    public var sessionCount: Int { sessions.count }
+    public var lastActivity: Date? { latest.lastActivity }
+    /// The first prompt of the most recent session.
+    public var task: String? { latest.firstPrompt }
+    public var title: String? { latest.title }
+    public var pullRequestURL: URL? { sessions.lazy.compactMap(\.pullRequestURL).first }
+    /// Claude is in the middle of a turn in one of the sessions.
+    public var isActive: Bool { sessions.contains { $0.isWorking() } }
 }
 
 public enum ClaudeCode {
@@ -38,47 +41,8 @@ public enum ClaudeCode {
         return home.appendingPathComponent(".claude/projects").appendingPathComponent(encoded)
     }
 
-    public static func sessionInfo(for path: String, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> ClaudeSessionInfo? {
-        let directory = projectDirectory(for: path, home: home)
-        let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey],
-                                                       options: [.skipsHiddenFiles]) else { return nil }
-        let transcripts = files.filter { $0.pathExtension == "jsonl" }
-            .map { url -> (URL, Date) in
-                let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                return (url, date)
-            }
-            .sorted { $0.1 > $1.1 }
-        guard let latest = transcripts.first else { return nil }
-        let transcript = readTranscript(latest.0)
-        return ClaudeSessionInfo(sessionCount: transcripts.count, lastActivity: latest.1, task: transcript.task,
-                                 title: transcript.title, pullRequestURL: transcript.pullRequest)
-    }
-
-    /// Scans a transcript for the first user prompt, the latest AI title and any PR link.
-    /// Only lines that can matter are JSON-decoded, so multi-megabyte transcripts stay cheap.
-    static func readTranscript(_ url: URL) -> (task: String?, title: String?, pullRequest: URL?) {
-        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return (nil, nil, nil) }
-        var task: String?
-        var title: String?
-        var pullRequest: URL?
-        for line in data.split(separator: UInt8(ascii: "\n")) {
-            let head = String(decoding: line.prefix(200), as: UTF8.self)
-            let interesting = head.contains("\"ai-title\"") || head.contains("\"pr-link\"")
-                || (task == nil && head.contains("\"type\":\"user\""))
-            guard interesting, let object = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any] else { continue }
-            switch object["type"] as? String {
-            case "ai-title":
-                title = object["aiTitle"] as? String ?? title
-            case "pr-link":
-                if let string = object["prUrl"] as? String { pullRequest = URL(string: string) }
-            case "user" where task == nil && object["isMeta"] as? Bool != true && object["isSidechain"] as? Bool != true:
-                if let message = object["message"] as? [String: Any] { task = promptText(message["content"]) }
-            default:
-                break
-            }
-        }
-        return (task, title, pullRequest)
+    public static func sessionInfo(for path: String, index: ClaudeSessionIndex = .shared) -> ClaudeSessionInfo? {
+        ClaudeSessionInfo(sessions: index.sessions(for: path))
     }
 
     static func promptText(_ content: Any?) -> String? {

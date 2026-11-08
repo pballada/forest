@@ -7,7 +7,6 @@ struct WorktreesView: View {
     var body: some View {
         let main = store.worktrees.filter(\.isMain)
         let agents = store.worktrees.filter { $0.isClaude && !$0.isMain }
-        let others = store.worktrees.filter { !$0.isClaude && !$0.isMain }
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 26) {
@@ -15,9 +14,6 @@ struct WorktreesView: View {
                     WorktreeSection(title: "Main", systemImage: "house", store: store, worktrees: main, tint: Theme.leaf)
                     WorktreeSection(title: "Claude Agents", systemImage: "sparkles", store: store, worktrees: agents, tint: Theme.claude) {
                         AgentEmptyCard(store: store)
-                    }
-                    if !others.isEmpty {
-                        WorktreeSection(title: "Worktrees", systemImage: "square.stack.3d.up", store: store, worktrees: others)
                     }
                 }
                 .padding(24)
@@ -67,9 +63,7 @@ struct WorktreesView: View {
             Spacer()
             Button { store.pruneWorktrees() } label: { Label("Prune", systemImage: "scissors") }
                 .help("Remove records of worktrees whose folders were deleted")
-            Button { store.sheet = .newWorktree(base: nil, claude: false) } label: { Label("New Worktree", systemImage: "plus") }
-                .tint(Theme.leaf)
-            Button { store.sheet = .newWorktree(base: nil, claude: true) } label: {
+            Button { store.sheet = .newAgent(base: nil) } label: {
                 Label("New Claude Agent", systemImage: "sparkles")
                     .padding(.horizontal, 4)
             }
@@ -117,7 +111,7 @@ private struct AgentEmptyCard: View {
     @State private var hovering = false
 
     var body: some View {
-        Button { store.sheet = .newWorktree(base: nil, claude: true) } label: {
+        Button { store.sheet = .newAgent(base: nil) } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
                     ClaudeMark(size: 30)

@@ -151,6 +151,20 @@ struct Sandbox {
         #expect(try await box.repo.stashes().isEmpty)
     }
 
+    @Test func removesLockedWorktree() async throws {
+        let box = try await Sandbox()
+        try await box.commit("a.txt", "one\n", message: "initial")
+        let path = ClaudeCode.worktreePath(repoRoot: box.url, name: "locked")
+        try await box.repo.addWorktree(at: path, newBranch: "worktree-locked", base: "main")
+        var tree = try #require(try await box.repo.worktrees().first { $0.isClaude })
+        try await box.repo.lockWorktree(tree, reason: "Claude Code agent")
+        tree = try #require(try await box.repo.worktrees().first { $0.isClaude })
+        #expect(tree.isLocked)
+        try await box.repo.removeWorktree(tree, force: true)
+        #expect(!FileManager.default.fileExists(atPath: path.path))
+        #expect(try await box.repo.worktrees().count == 1)
+    }
+
     @Test func worktreesIncludingClaudeLayout() async throws {
         let box = try await Sandbox()
         try await box.commit("a.txt", "1\n", message: "first")

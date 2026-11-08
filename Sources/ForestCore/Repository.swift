@@ -537,8 +537,11 @@ public struct Repository: Sendable, Hashable, Identifiable {
         try await git.run(args)
     }
 
+    /// Removes a worktree. With `force`, uncommitted changes are discarded and a locked worktree
+    /// (Claude Code locks the ones it runs in) is removed too: git needs `--force` twice for that.
     public func removeWorktree(_ worktree: Worktree, force: Bool = false) async throws {
-        try await git.run(["worktree", "remove"] + (force ? ["--force"] : []) + [worktree.path])
+        let flags = force ? (worktree.isLocked ? ["--force", "--force"] : ["--force"]) : []
+        try await git.run(["worktree", "remove"] + flags + [worktree.path])
     }
 
     public func lockWorktree(_ worktree: Worktree, reason: String?) async throws {

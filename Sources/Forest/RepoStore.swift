@@ -765,7 +765,8 @@ final class RepoStore {
         let status = worktreeStatus[worktree.path]
         let dirty = status?.isDirty == true
         let branch = worktree.branch
-        var message = dirty ? "This worktree has uncommitted changes that will be lost. " : ""
+        var message = claudeSessions[worktree.path]?.isActive == true ? "Claude is still working here. " : ""
+        message += dirty ? "This worktree has uncommitted changes that will be lost. " : ""
         message += branch.map { "The branch “\($0)” is kept." } ?? ""
         confirm("Remove worktree “\(worktree.name)”?", message, action: "Remove") {
             self.run("Removing worktree", success: "Removed \(worktree.name)") {
@@ -777,8 +778,9 @@ final class RepoStore {
     /// Removes a finished agent's worktree and deletes its branch.
     func discardAgent(_ worktree: Worktree) {
         guard let branch = worktree.branch else { return remove(worktree) }
+        let active = claudeSessions[worktree.path]?.isActive == true ? "Claude is still working here. " : ""
         confirm("Remove “\(worktree.name)” and delete “\(branch)”?",
-                "The worktree folder and its branch are deleted, including unmerged commits.", action: "Remove & Delete") {
+                active + "The worktree folder and its branch are deleted, including unmerged commits.", action: "Remove & Delete") {
             self.run("Cleaning up", success: "Removed \(worktree.name)") {
                 try await self.repository.removeWorktree(worktree, force: true)
                 try await self.repository.git.run(["branch", "-D", branch])

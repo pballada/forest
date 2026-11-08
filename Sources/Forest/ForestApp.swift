@@ -175,6 +175,9 @@ struct ForestCommands: Commands {
             Button("Close Terminal") { if let project, let path { project.closeTerminal(for: path) } }
                 .disabled(path == nil || project?.terminal(for: path ?? "") == nil)
             Divider()
+            Button("Compare…") { store?.sheet = .compare(left: nil, right: nil, file: nil) }
+                .keyboardShortcut("c", modifiers: [.command, .option])
+                .disabled(store == nil)
             Button("Review Agent…") {
                 if let project, let path, let worktree = project.worktree(at: path), !worktree.isMain { project.main.sheet = .review(worktree) }
             }

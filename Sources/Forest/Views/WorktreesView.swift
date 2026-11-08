@@ -376,6 +376,9 @@ struct WorktreeMenuItems: View {
             }
             if branch != store.mainWorktree?.branch {
                 Button("Review Changes…") { store.sheet = .review(worktree) }
+                Button("Compare with “\(store.mainWorktree?.branch ?? "main")”…") {
+                    store.sheet = .compare(left: store.mainWorktree?.branch, right: branch, file: nil)
+                }
             }
             Button("Push & Open Pull Request") { store.pushAndOpenPullRequest(worktree) }
             Button("Show Branch in History") {

@@ -62,6 +62,13 @@ enum Snapshotter {
                 project.store(for: agent.path).sidebar = .terminal
             }))
             steps.append(("6-review", { project.main.sheet = .review(agent) }))
+            steps.append(("6-compare", {
+                project.main.sheet = nil
+                Task {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    project.main.sheet = .compare(left: project.main.status.branch, right: agent.branch, file: nil)
+                }
+            }))
         }
         steps += [
             ("7-palette", {

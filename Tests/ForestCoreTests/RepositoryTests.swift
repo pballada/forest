@@ -151,6 +151,19 @@ struct Sandbox {
         #expect(try await box.repo.stashes().isEmpty)
     }
 
+    @Test func comparesFilesAnywhere() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("forest-compare-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let a = dir.appendingPathComponent("a.txt"), b = dir.appendingPathComponent("b.txt")
+        try "one\ntwo\nthree\n".write(to: a, atomically: true, encoding: .utf8)
+        try "one\n2\nthree\nfour\n".write(to: b, atomically: true, encoding: .utf8)
+        let diff = try #require(try await Repository.diffFiles(a, b))
+        #expect(diff.hunks.count == 1)
+        #expect(diff.additions == 2)
+        #expect(diff.deletions == 1)
+        #expect(try await Repository.diffFiles(a, a) == nil)
+    }
+
     @Test func removesLockedWorktree() async throws {
         let box = try await Sandbox()
         try await box.commit("a.txt", "one\n", message: "initial")

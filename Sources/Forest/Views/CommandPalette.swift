@@ -96,6 +96,7 @@ struct CommandPalette: View {
         let root = store.repository.root
         return [
             PaletteItem(id: "claude-agent", title: "New Claude Agent…", subtitle: "Isolated worktree + Claude Code", systemImage: "sparkles", tint: Theme.claude) { store.sheet = .newAgent(base: nil) },
+            PaletteItem(id: "compare", title: "Compare…", subtitle: "Two branches, two agents or any two files", systemImage: "rectangle.split.2x1") { store.sheet = .compare(left: nil, right: nil, file: nil) },
             PaletteItem(id: "claude-message", title: "Write Commit Message with Claude", subtitle: "\(store.status.staged.count) staged files",
                         systemImage: "text.badge.star", tint: Theme.claude) { store.sidebar = .changes; store.generateCommitMessage() },
             PaletteItem(id: "undo", title: store.undo.map { "Undo \($0.title)" } ?? "Undo", subtitle: store.undo == nil ? "Nothing to undo" : "⌥⌘Z",

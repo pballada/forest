@@ -172,6 +172,9 @@ struct LiveChangesPanel: View {
                 Button("Open in \(Preferences.editor.rawValue)") { Launcher.openInEditor(store.repository.root.appendingPathComponent(file.path)) }
                 Button("Reveal in Finder") { Launcher.revealInFinder(store.repository.root.appendingPathComponent(file.path)) }
                 Button("Copy Path") { copy(file.path) }
+                Button("Compare with Another File…") {
+                    store.sheet = .compare(left: nil, right: nil, file: store.repository.root.appendingPathComponent(file.path))
+                }
                 if !committed {
                     Divider()
                     Button("Discard Changes…", role: .destructive) { store.discard(store.allChanges.filter { $0.path == file.path }) }

@@ -190,6 +190,8 @@ struct SheetHost: View {
             AddRemoteSheet(store: store)
         case .review(let worktree):
             AgentReviewView(worktree: worktree, store: store)
+        case .compare(let left, let right, let file):
+            CompareView(store: store, left: left, right: right, file: file)
         }
     }
 }

@@ -18,6 +18,7 @@ enum SheetKind: Identifiable {
     case stash
     case addRemote
     case review(Worktree)
+    case compare(left: String?, right: String?, file: URL?)
 
     var id: String {
         switch self {
@@ -28,6 +29,7 @@ enum SheetKind: Identifiable {
         case .stash: "stash"
         case .addRemote: "remote"
         case .review(let w): "review-\(w.path)"
+        case .compare(let l, let r, let f): "compare-\(l ?? "")-\(r ?? "")-\(f?.path ?? "")"
         }
     }
 }

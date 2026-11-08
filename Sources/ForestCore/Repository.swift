@@ -144,6 +144,14 @@ public struct Repository: Sendable, Hashable, Identifiable {
         return DiffParser.parse(output).first
     }
 
+    /// Compares any two files on disk, inside a repository or not (`git diff --no-index`).
+    public static func diffFiles(_ old: URL, _ new: URL, options: DiffOptions = DiffOptions()) async throws -> FileDiff? {
+        let git = GitRunner(directory: old.deletingLastPathComponent())
+        let output = try await git.run(["diff", "--no-ext-diff", "--no-index"] + options.arguments + ["--", old.path, new.path],
+                                       allowedExitCodes: [0, 1]).output
+        return DiffParser.parse(output).first
+    }
+
     /// Files that differ between `base` and `target` (the working tree when nil), with line counts.
     public func changedFiles(from base: String, to target: String?) async throws -> [FileChange] {
         let revisions = [base] + (target.map { [$0] } ?? [])

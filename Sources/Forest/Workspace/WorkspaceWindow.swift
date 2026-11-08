@@ -14,6 +14,9 @@ struct WorkspaceWindow: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
     @State private var columns = NavigationSplitViewVisibility.all
+    /// The inspector is only presented once the split view is on screen: presenting it in the same pass that
+    /// swaps the welcome view for the split view makes AppKit raise on a constraint between unrelated views.
+    @State private var inspectorReady = false
 
     private var theme: CodeTheme { CodeTheme.named(themeID) }
 
@@ -52,16 +55,21 @@ struct WorkspaceWindow: View {
                     }
             }
             .navigationSplitViewStyle(.balanced)
+            .task {
+                try? await Task.sleep(for: .milliseconds(300))
+                inspectorReady = true
+            }
+            .onDisappear { inspectorReady = false }
             .toolbarBackground(theme.canvasColor, for: .windowToolbar)
             .modifier(HiddenWindowTitle())
         }
     }
 
     private var inspectorBinding: Binding<Bool> {
-        Binding(get: { workspace.showInspector && workspace.selection?.worktree != nil },
+        Binding(get: { inspectorReady && workspace.showInspector && workspace.selection?.worktree != nil },
                 set: { value in
                     // The inspector reports "hidden" while a project overview is shown; that isn't a user choice.
-                    if workspace.selection?.worktree != nil { workspace.showInspector = value }
+                    if inspectorReady && workspace.selection?.worktree != nil { workspace.showInspector = value }
                 })
     }
 

@@ -121,6 +121,10 @@ struct ForestCommands: Commands {
     private var path: String? { workspace?.selection?.worktree }
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About Forest") { AboutPanel.show() }
+        }
+
         CommandGroup(after: .appInfo) {
             Button("Check for Updates…") {
                 openWindow(id: "update")
@@ -221,4 +225,38 @@ struct ForestCommands: Commands {
 
 extension Notification.Name {
     static let showClone = Notification.Name("ForestShowClone")
+}
+
+/// The standard About panel, with what Forest is, its links and credits.
+@MainActor
+enum AboutPanel {
+    static func show() {
+        let body = NSMutableAttributedString()
+        let center = NSMutableParagraphStyle()
+        center.alignment = .center
+        center.paragraphSpacing = 6
+        func add(_ text: String, _ font: NSFont, _ color: NSColor = .labelColor, link: URL? = nil) {
+            var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color, .paragraphStyle: center]
+            if let link { attributes[.link] = link }
+            body.append(NSAttributedString(string: text, attributes: attributes))
+        }
+        let small = NSFont.systemFont(ofSize: 11)
+        add("Your coding agents, their terminals and their changes, with a native Git client.\n",
+            .systemFont(ofSize: 11.5, weight: .medium))
+        add("Claude Code · Codex · Gemini CLI\n", small, .secondaryLabelColor)
+        add("GitHub", small, link: URL(string: "https://github.com/pballada/forest"))
+        add("  ·  ", small, .tertiaryLabelColor)
+        add("Issues", small, link: URL(string: "https://github.com/pballada/forest/issues"))
+        add("  ·  ", small, .tertiaryLabelColor)
+        add("What's new", small, link: URL(string: "https://github.com/pballada/forest/releases/tag/v\(Updater.currentVersion)"))
+        add("\nTerminal by Ghostty (MIT)", .systemFont(ofSize: 10), .tertiaryLabelColor)
+
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .credits: body,
+            .applicationVersion: Updater.currentVersion,
+            .version: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "",
+            NSApplication.AboutPanelOptionKey(rawValue: "Copyright"): "© 2026 Pau Ballada",
+        ])
+    }
 }

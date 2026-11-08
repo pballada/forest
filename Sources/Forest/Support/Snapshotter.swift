@@ -128,6 +128,12 @@ enum Snapshotter {
         try? await Task.sleep(for: .seconds(1))
         if let view = settings.contentView { write(view: view, to: directory.appendingPathComponent("10-themes.png")) }
         settings.close()
+        AboutPanel.show()
+        try? await Task.sleep(for: .seconds(1))
+        if let about = NSApp.windows.first(where: { $0.isVisible && String(describing: type(of: $0)).contains("About") }) ?? NSApp.keyWindow,
+           let view = about.contentView?.superview {
+            write(view: view, to: directory.appendingPathComponent("11-about.png"))
+        }
         NSApp.terminate(nil)
     }
 

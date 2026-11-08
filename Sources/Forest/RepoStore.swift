@@ -1,9 +1,10 @@
 import AppKit
 import ForestCore
+import ForestTerminal
 import SwiftUI
 
 enum SidebarItem: Hashable {
-    case changes, history, worktrees
+    case terminal, changes, history, worktrees
     case branch(String)
     case tag(String)
     case stash(String)
@@ -122,6 +123,9 @@ final class RepoStore {
     var celebration = 0
     var commitExplanation: ClaudeNote?
 
+    /// Embedded terminals, by worktree path.
+    var terminals: [String: TerminalSession] = [:]
+
     @ObservationIgnored private var watcher: FileWatcher?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var sessionTimer: Timer?
@@ -175,7 +179,19 @@ final class RepoStore {
         }
     }
 
+    /// The terminal for `path`, started on first use.
+    func terminal(for path: String, initialInput: String? = nil) -> TerminalSession {
+        if let existing = terminals[path], !existing.isClosed { return existing }
+        let session = TerminalSession(directory: URL(fileURLWithPath: path), initialInput: initialInput)
+        session.onClose = { [weak self] closed in
+            if self?.terminals[path] === closed { self?.terminals[path] = nil }
+        }
+        terminals[path] = session
+        return session
+    }
+
     func stop() {
+        terminals.values.forEach { $0.close() }
         watcher?.stop()
         sessionTimer?.invalidate()
     }

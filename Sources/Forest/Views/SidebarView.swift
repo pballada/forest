@@ -11,6 +11,7 @@ struct SidebarView: View {
     var body: some View {
         List(selection: Binding<SidebarItem?>(get: { store.sidebar }, set: { if let item = $0 { select(item) } })) {
             Section {
+                workspaceRow(.terminal, title: "Terminal", systemImage: "terminal", count: 0, color: Theme.claude)
                 workspaceRow(.changes, title: "Changes", systemImage: "pencil.and.list.clipboard", count: store.status.changeCount, color: .orange)
                 workspaceRow(.history, title: "History", systemImage: "clock.arrow.circlepath", count: 0, color: Theme.leaf)
                 workspaceRow(.worktrees, title: "Worktrees", systemImage: "square.stack.3d.up.fill", count: store.worktrees.count > 1 ? store.worktrees.count : 0,

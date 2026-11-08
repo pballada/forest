@@ -1,4 +1,5 @@
 import ForestCore
+import ForestTerminal
 import SwiftUI
 
 struct RepoWindow: View {
@@ -95,6 +96,8 @@ private struct RepoContent: View {
 
     @ViewBuilder private var detail: some View {
         switch store.sidebar {
+        case .terminal:
+            TerminalHost(session: store.terminal(for: store.repository.root.path))
         case .changes:
             ChangesView(store: store)
         case .history, .branch, .tag:

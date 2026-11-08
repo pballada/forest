@@ -11,6 +11,8 @@ VERSION="${VERSION#v}"
 BUILD="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
 
 cd "$ROOT"
+# libghostty (embedded terminal), built once from Ghostty's official source.
+scripts/build-ghosttykit.sh
 swift build -c "$CONFIG" --product Forest
 BIN="$(swift build -c "$CONFIG" --show-bin-path)/Forest"
 
@@ -23,6 +25,10 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Forest"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# Shell integration and terminfo for the embedded terminal, laid out like Ghostty.app's Resources.
+cp -R Vendor/ghostty-resources/ghostty "$APP/Contents/Resources/ghostty"
+cp -R Vendor/ghostty-resources/terminfo "$APP/Contents/Resources/terminfo"
+cp Vendor/GHOSTTY_LICENSE "$APP/Contents/Resources/Ghostty-LICENSE.txt"
 
 # Compile the asset catalog so the system accent (selection, focus rings, default buttons) is Forest green.
 ASSETS_TMP="$(mktemp -d)"

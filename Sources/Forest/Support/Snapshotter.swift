@@ -1,5 +1,6 @@
 import AppKit
 import ForestCore
+import ForestTerminal
 import SwiftUI
 
 /// Development aid: with `FOREST_SNAPSHOT_DIR` set, walks through the main screens of the first
@@ -31,7 +32,22 @@ enum Snapshotter {
         }
         UserDefaults.standard.set(DiffPresentation.unified.rawValue, forKey: "diff.presentation")
         steps += [
+            ("1-terminal", {
+                store.sidebar = .terminal
+                let session = store.terminal(for: store.repository.root.path)
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    session.send("echo forest-spike $TERM $TERM_PROGRAM && git status -sb | head -3", submit: true)
+                }
+            }),
             ("2-history", {
+                if let session = store.terminals[store.repository.root.path] {
+                    try? session.visibleText().write(to: directory.appendingPathComponent("1-terminal.txt"), atomically: true, encoding: .utf8)
+                    if let image = session.snapshotImage(), let tiff = image.tiffRepresentation,
+                       let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+                        try? png.write(to: directory.appendingPathComponent("1-terminal-surface.png"))
+                    }
+                }
                 UserDefaults.standard.set(DiffPresentation.unified.rawValue, forKey: "diff.presentation")
                 store.sidebar = .history
                 if let merge = store.commits.first(where: \.isMerge) { Task { await store.selectCommit(merge.id) } }

@@ -26,10 +26,34 @@ final class WorkspaceStore {
         static let terminals = "workspace.terminals"
         static let inspector = "workspace.inspector"
         static let tools = "workspace.tools"
+        static let collapsed = "workspace.collapsedProjects"
+        static let expanded = "workspace.expandedWorktrees"
+    }
+
+    /// Projects folded in the sidebar, and worktrees whose sessions are unfolded.
+    var collapsedProjects: Set<String> {
+        didSet { UserDefaults.standard.set(Array(collapsedProjects), forKey: Keys.collapsed) }
+    }
+    var expandedWorktrees: Set<String> {
+        didSet { UserDefaults.standard.set(Array(expandedWorktrees), forKey: Keys.expanded) }
     }
 
     private init() {
         showInspector = UserDefaults.standard.object(forKey: Keys.inspector) as? Bool ?? true
+        collapsedProjects = Set(UserDefaults.standard.stringArray(forKey: Keys.collapsed) ?? [])
+        expandedWorktrees = Set(UserDefaults.standard.stringArray(forKey: Keys.expanded) ?? [])
+    }
+
+    func isExpanded(project: ProjectStore) -> Bool { !collapsedProjects.contains(project.id) }
+
+    func setExpanded(_ expanded: Bool, project: ProjectStore) {
+        if expanded { collapsedProjects.remove(project.id) } else { collapsedProjects.insert(project.id) }
+    }
+
+    func isExpanded(worktree path: String) -> Bool { expandedWorktrees.contains(path) }
+
+    func setExpanded(_ expanded: Bool, worktree path: String) {
+        if expanded { expandedWorktrees.insert(path) } else { expandedWorktrees.remove(path) }
     }
 
     var selectedProject: ProjectStore? {

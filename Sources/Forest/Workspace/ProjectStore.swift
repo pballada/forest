@@ -201,7 +201,7 @@ final class ProjectStore: Identifiable {
             if self.terminals[path] === closed { self.terminals[path] = nil }
             if self.shells[path] === closed { self.shells[path] = nil }
         }
-        session.onAttention = { [weak self] _ in self?.attentionChanged() }
+        session.onAttention = { _ in WorkspaceStore.shared.updateDockBadge() }
         return session
     }
 
@@ -216,10 +216,6 @@ final class ProjectStore: Identifiable {
         return parts.joined(separator: " ")
     }
 
-    private func attentionChanged() {
-        WorkspaceStore.shared.updateDockBadge()
-        if !NSApp.isActive { NSApp.requestUserAttention(.informationalRequest) }
-    }
 
     // MARK: Agent actions
 

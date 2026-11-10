@@ -30,6 +30,7 @@ struct WorkspaceWindow: View {
             .task {
                 WindowOpener.install(open: openWindow, dismiss: dismissWindow)
                 workspace.restore()
+                AgentMonitor.shared.start()
                 await Snapshotter.run(workspace: workspace)
             }
             .task(id: terminalKey) { applyTerminalAppearance() }

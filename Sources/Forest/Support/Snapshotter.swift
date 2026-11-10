@@ -63,6 +63,25 @@ enum Snapshotter {
                 project.store(for: agent.path).sidebar = .terminal
             }))
             if ProcessInfo.processInfo.environment["FOREST_SNAPSHOT_LAUNCH"] != nil {
+                // FOREST_SNAPSHOT_SHELLS="name=command|name=command" starts shells in other worktrees first
+                // (e.g. a bell or an OSC 9;4 progress report) so the sidebar shows every agent state.
+                let shells = (ProcessInfo.processInfo.environment["FOREST_SNAPSHOT_SHELLS"] ?? "")
+                    .split(separator: "|").compactMap { entry -> (String, String)? in
+                        let parts = entry.split(separator: "=", maxSplits: 1).map(String.init)
+                        return parts.count == 2 ? (parts[0], parts[1]) : nil
+                    }
+                if !shells.isEmpty {
+                    steps.append(("5-setup", {
+                        for (name, command) in shells {
+                            guard let worktree = project.worktrees.first(where: { name == "main" ? $0.isMain : $0.name == name }) else { continue }
+                            let session = project.launch(.shell, in: worktree.path)
+                            Task {
+                                try? await Task.sleep(for: .milliseconds(900))
+                                session.send(command, submit: true)
+                            }
+                        }
+                    }))
+                }
                 steps.append(("5-agent-launched", {
                     if let command = ProcessInfo.processInfo.environment["FOREST_SNAPSHOT_COMMAND"] {
                         let session = project.launch(.shell, in: agent.path)

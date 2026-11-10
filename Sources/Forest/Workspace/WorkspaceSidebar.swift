@@ -1,20 +1,18 @@
 import ForestCore
 import SwiftUI
 
-/// Projects and their worktrees: the main checkout, then every Claude agent with what it's doing.
+/// An accordion of projects → worktrees → sessions, each with what its agent is doing.
 struct WorkspaceSidebar: View {
     @Bindable var workspace: WorkspaceStore
     @Environment(\.theme) private var theme
 
     var body: some View {
         List(selection: $workspace.selection) {
-            ForEach(Array(workspace.projects.enumerated()), id: \.element.id) { index, project in
-                Section {
+            ForEach(workspace.projects, id: \.id) { project in
+                Section(isExpanded: Binding(get: { workspace.isExpanded(project: project) },
+                                            set: { workspace.setExpanded($0, project: project) })) {
                     ForEach(project.worktrees) { worktree in
-                        WorktreeRow(project: project, worktree: worktree,
-                                    shortcut: shortcutIndex(project: project, worktree: worktree))
-                            .tag(WorkspaceStore.Selection(project: project.id, worktree: worktree.path))
-                            .contextMenu { WorktreeRowMenu(project: project, worktree: worktree) }
+                        worktreeItem(project: project, worktree: worktree)
                     }
                 } header: {
                     ProjectHeader(project: project, workspace: workspace)
@@ -25,6 +23,27 @@ struct WorkspaceSidebar: View {
         .scrollContentBackground(.hidden)
         .background(theme.sidebarColor)
         .safeAreaInset(edge: .bottom, spacing: 0) { footer }
+    }
+
+    /// A worktree row; when it has conversations, it unfolds to list them.
+    @ViewBuilder
+    private func worktreeItem(project: ProjectStore, worktree: Worktree) -> some View {
+        let row = WorktreeRow(project: project, worktree: worktree, shortcut: shortcutIndex(project: project, worktree: worktree))
+            .tag(WorkspaceStore.Selection(project: project.id, worktree: worktree.path))
+            .contextMenu { WorktreeRowMenu(project: project, worktree: worktree) }
+        let sessions = project.sessions(for: worktree.path)
+        if sessions.isEmpty {
+            row
+        } else {
+            DisclosureGroup(isExpanded: Binding(get: { workspace.isExpanded(worktree: worktree.path) },
+                                                set: { workspace.setExpanded($0, worktree: worktree.path) })) {
+                ForEach(sessions.prefix(8)) { session in
+                    SessionRow(project: project, worktree: worktree, session: session)
+                }
+            } label: {
+                row
+            }
+        }
     }
 
     private func shortcutIndex(project: ProjectStore, worktree: Worktree) -> Int? {
@@ -101,8 +120,17 @@ private struct ProjectHeader: View {
                         .font(.system(size: 11.5, weight: .semibold))
                         .foregroundStyle(workspace.selection == .init(project: project.id, worktree: nil) ? theme.accentColor : theme.secondaryColor)
                         .textCase(nil)
+                    if project.workingCount > 0 {
+                        HStack(spacing: 3) {
+                            Circle().fill(theme.agentColor).frame(width: 6, height: 6)
+                            Text("\(project.workingCount)")
+                        }
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(theme.agentColor)
+                        .help("\(project.workingCount) agent\(project.workingCount == 1 ? "" : "s") working")
+                    }
                     if project.needsInputCount > 0 {
-                        Text("\(project.needsInputCount)")
+                        Text("! \(project.needsInputCount)")
                             .font(.system(size: 9.5, weight: .bold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 5)
@@ -220,7 +248,7 @@ struct AgentStateGlyph: View {
                 if isMain {
                     Image(systemName: "house.fill").font(.system(size: 11)).foregroundStyle(theme.accentColor)
                 } else {
-                    Circle().strokeBorder(theme.agentColor, lineWidth: 1.5).frame(width: 9, height: 9)
+                    Circle().fill(theme.accentColor).frame(width: 8, height: 8)
                 }
             case .dormant:
                 if isMain {
@@ -234,13 +262,14 @@ struct AgentStateGlyph: View {
         .onAppear { startPulse() }
         .onChange(of: state) { _, _ in startPulse() }
         .accessibilityLabel(label)
+        .help(label)
     }
 
     private var label: String {
         switch state {
-        case .working: "Working"
-        case .needsInput: "Needs your input"
-        case .idle: "Open"
+        case .working: "Agent working"
+        case .needsInput: "Waiting for your input"
+        case .idle: "Session open, agent idle"
         case .dormant: "Not running"
         }
     }
@@ -314,5 +343,61 @@ private struct UpdateReadyPill: View {
         .padding(.vertical, 8)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(theme.accentColor.opacity(0.1)))
         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(theme.accentColor.opacity(0.3), lineWidth: 0.5))
+    }
+}
+
+/// One conversation inside a worktree: whether it's the one running, and when it was last active.
+/// Clicking it resumes that conversation in the worktree's terminal.
+private struct SessionRow: View {
+    let project: ProjectStore
+    let worktree: Worktree
+    let session: ClaudeSession
+    @Environment(\.theme) private var theme
+
+    private var isRunning: Bool {
+        project.terminal(for: worktree.path) != nil && project.terminalSessionIDs[worktree.path] == session.id
+    }
+
+    private var state: AgentState {
+        if isRunning { return project.state(for: worktree.path) }
+        return session.isWorking() ? .working : .dormant
+    }
+
+    var body: some View {
+        Button(action: open) {
+            HStack(spacing: 7) {
+                AgentStateGlyph(state: state)
+                    .scaleEffect(0.8)
+                    .frame(width: 14)
+                Text(session.displayTitle)
+                    .font(.system(size: 11.5, weight: isRunning ? .medium : .regular))
+                    .foregroundStyle(isRunning ? theme.textColor : theme.secondaryColor)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text(Format.ago(session.lastActivity))
+                    .font(.system(size: 10))
+                    .foregroundStyle(theme.tertiaryColor)
+                    .lineLimit(1)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isRunning ? "Running in this worktree's terminal" : "Resume “\(session.displayTitle)”")
+    }
+
+    private func open() {
+        let workspace = WorkspaceStore.shared
+        workspace.select(project: project, worktree: worktree.path)
+        let store = project.store(for: worktree.path)
+        store.sidebar = .terminal
+        guard !isRunning else { return }
+        if project.terminal(for: worktree.path) != nil {
+            store.confirm("Switch to “\(session.displayTitle)”?", "The terminal running in \(worktree.name) closes; its conversation can be resumed later.",
+                          action: "Switch", destructive: false) {
+                project.launch(.resume(sessionID: session.id), in: worktree.path)
+            }
+        } else {
+            project.launch(.resume(sessionID: session.id), in: worktree.path)
+        }
     }
 }

@@ -34,7 +34,7 @@
 Running several coding agents usually means a terminal tab per worktree, a Git app somewhere else and a diff tool on
 top. Forest puts them in one place:
 
-- **Left**: every project, its main checkout and each agent's worktree, with what the agent is doing right now.
+- **Left**: an accordion of projects → agents' worktrees → their sessions, each showing what the agent is doing right now.
 - **Middle**: that worktree's **terminal** (real Ghostty), its **changes**, or its **history**.
 - **Right**: files appearing **live** as the agent writes them, with Review and Merge one click away.
 
@@ -64,8 +64,21 @@ and config behave exactly as on the command line.
 ## Features
 
 ### Agents and sessions
-- **One window, every project**: each row shows whether the agent is working, waiting for you, open or not running,
-  plus its conversation's title and how many files it has changed. ⌘1…⌘9 and ⌃Tab jump between them like tabs.
+- **One window, every project**: a sidebar accordion of projects, their worktrees and each worktree's sessions. Fold
+  a project and its header still sums up how many agents are working and how many are waiting for you.
+  ⌘1…⌘9 and ⌃Tab jump between worktrees like tabs; click a session to resume it.
+- **Know what each agent is doing at a glance**:
+
+  | Indicator | Meaning |
+  |---|---|
+  | Pulsing dot | The agent is working |
+  | Orange **!** | It's waiting for your input (a permission, a question, the bell) |
+  | Solid dot | A session is open and the agent is idle |
+  | Hollow ring | Nothing running; **Continue** resumes it |
+
+- **Hear it when an agent needs you**: pick a sound for "needs your input" and another for "finished" (any macOS
+  sound, or none), play them only when Forest is in the background, and optionally get a notification. The Dock
+  badge counts agents waiting for you.
 - **Continue sessions easily**: a worktree without a running terminal lists its Claude conversations by title, so you
   can resume the last one (`claude --resume <id>`), pick an earlier one, or start fresh with a task. Codex and Gemini
   continue with `codex resume --last` and `gemini --resume latest`.
@@ -103,9 +116,18 @@ and config behave exactly as on the command line.
   by side or with a swipe slider.
 
 ### Themes
-One theme for the whole window, diffs and terminal: **Forest Night** and **Forest Day** (Automatic follows the system),
-Solarized Dark and Light, Tokyo Night, Catppuccin Mocha and Latte, Rosé Pine, Nord, Gruvbox, Dracula, One Dark, Monokai,
-GitHub Dark and Light. Each comes with a tuned terminal palette, and selections stay readable in all of them.
+22 themes for the whole window, diffs and terminal: **Forest Night** and **Forest Day** (Automatic follows the system),
+Everforest Dark and Light, Solarized Dark and Light, Tokyo Night, Kanagawa, Night Owl, Catppuccin Mocha and Latte,
+Rosé Pine and Rosé Pine Dawn, Nord, Gruvbox, Dracula, One Dark, Monokai, Ayu Light, GitHub Dark and Light. Each comes
+with a tuned terminal palette, and selections stay readable in all of them.
+
+### Always up to date
+Forest checks GitHub Releases at launch and every few hours, downloads a new version in the background, verifies its
+Developer ID signature and notarization, and installs it when you quit. A "ready" note in the sidebar lets you restart
+into it right away; Forest never restarts on its own, so running agents aren't interrupted. Forest › Check for
+Updates… checks on demand.
+
+<p align="center"><img src="docs/screenshots/themes.png" width="620" alt="Theme gallery in Settings"></p>
 
 ## Gallery
 
@@ -166,8 +188,8 @@ usual.
 - **Session**: a conversation with the agent. Claude Code records each one in `~/.claude/projects`; Forest reads them
   (read-only) to show titles and to resume them.
 - **Row states**: a pulsing dot means *working*, an orange **!** means *waiting for you* (a permission prompt, a
-  question, the bell), a hollow ring means *open and idle*, and a grey ring means *not running* (Continue brings it
-  back).
+  question, the bell), a solid dot means *session open, agent idle*, and a hollow ring means *not running*
+  (Continue brings it back).
 
 ### FAQ
 
@@ -202,6 +224,20 @@ goes to the terminal.
 </details>
 
 <details>
+<summary><b>How do I get a sound when an agent needs me?</b></summary>
+
+Settings › Agents: choose a sound for "When an agent needs you" (Glass by default) and, if you like, one for "When an
+agent finishes". You can limit sounds to when Forest is in the background and turn on macOS notifications.
+</details>
+
+<details>
+<summary><b>How do updates work?</b></summary>
+
+Automatically: new versions download in the background and install when you quit Forest, or right away with Restart.
+Turn it off in Settings › General; Forest › Check for Updates… still works.
+</details>
+
+<details>
 <summary><b>Is anything sent anywhere?</b></summary>
 
 Only what you ask for: the Claude helpers (commit message, explain, review) send the relevant diff to Claude through
@@ -214,6 +250,7 @@ your account.
 | Problem | Try this |
 |---|---|
 | "claude: command not found" in the terminal | Install the CLI, or set its path in Settings › Agents. The terminal runs your login shell, so it uses your usual `PATH`. |
+| No sound when an agent needs me | Check Settings › Agents (sound not "None", "only in background" off while testing) and the system volume. The agent has to ring the bell or post a terminal notification; Claude Code does both. |
 | An agent's row never shows *working* | Claude Code reports progress to the terminal; if it doesn't, Forest falls back to the transcript, which can take a few seconds. Make sure the session runs inside Forest's terminal. |
 | No titles in the sidebar | Titles come from Claude Code transcripts in `~/.claude/projects`. Codex and Gemini sessions show "No conversation yet" but still continue with ↩. |
 | Removing an agent fails | Quit the agent first (it may hold a lock), then Remove again; Forest force-removes locked worktrees. |

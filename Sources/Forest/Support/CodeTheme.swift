@@ -240,6 +240,48 @@ struct CodeTheme: Identifiable, Equatable {
         ansi: [0x26233A, 0xEB6F92, 0x31748F, 0xF6C177, 0x9CCFD8, 0xC4A7E7, 0xEBBCBA, 0xE0DEF4,
                0x6E6A86, 0xEB6F92, 0x31748F, 0xF6C177, 0x9CCFD8, 0xC4A7E7, 0xEBBCBA, 0xE0DEF4],
         cursor: 0xE0DEF4)
+    static let everforestDark = CodeTheme(id: "everforestDark", name: "Everforest Dark", dark: true,
+        background: 0x2D353B, text: 0xD3C6AA, comment: 0x859289, accent: 0xA7C080, added: 0xA7C080, removed: 0xE67E80,
+        keyword: 0xE67E80, type: 0xDBBC7F, string: 0xA7C080, number: 0xD699B6, attribute: 0xE69875, key: 0x7FBBB3,
+        warning: 0xDBBC7F, agent: 0xE69875,
+        ansi: [0x475258, 0xE67E80, 0xA7C080, 0xDBBC7F, 0x7FBBB3, 0xD699B6, 0x83C092, 0xD3C6AA,
+               0x7A8478, 0xE67E80, 0xA7C080, 0xDBBC7F, 0x7FBBB3, 0xD699B6, 0x83C092, 0xE4DDC8],
+        cursor: 0xD3C6AA)
+    static let everforestLight = CodeTheme(id: "everforestLight", name: "Everforest Light", dark: false,
+        background: 0xFDF6E3, text: 0x5C6A72, comment: 0x939F91, accent: 0x8DA101, added: 0x8DA101, removed: 0xF85552,
+        keyword: 0xF85552, type: 0xDFA000, string: 0x8DA101, number: 0xDF69BA, attribute: 0xF57D26, key: 0x3A94C5,
+        warning: 0xDFA000, agent: 0xF57D26,
+        ansi: [0x5C6A72, 0xF85552, 0x8DA101, 0xDFA000, 0x3A94C5, 0xDF69BA, 0x35A77C, 0xDFDDC8,
+               0x939F91, 0xF85552, 0x8DA101, 0xDFA000, 0x3A94C5, 0xDF69BA, 0x35A77C, 0xFDF6E3],
+        cursor: 0x5C6A72)
+    static let kanagawa = CodeTheme(id: "kanagawa", name: "Kanagawa", dark: true,
+        background: 0x1F1F28, text: 0xDCD7BA, comment: 0x727169, accent: 0x7E9CD8, added: 0x98BB6C, removed: 0xE46876,
+        keyword: 0x957FB8, type: 0x7AA89F, string: 0x98BB6C, number: 0xD27E99, attribute: 0xFFA066, key: 0x7E9CD8,
+        warning: 0xE6C384, agent: 0xFFA066,
+        ansi: [0x090618, 0xC34043, 0x76946A, 0xC0A36E, 0x7E9CD8, 0x957FB8, 0x6A9589, 0xC8C093,
+               0x727169, 0xE82424, 0x98BB6C, 0xE6C384, 0x7FB4CA, 0x938AA9, 0x7AA89F, 0xDCD7BA],
+        cursor: 0xC8C093)
+    static let nightOwl = CodeTheme(id: "nightOwl", name: "Night Owl", dark: true,
+        background: 0x011627, text: 0xD6DEEB, comment: 0x637777, accent: 0x82AAFF, added: 0x22DA6E, removed: 0xEF5350,
+        keyword: 0xC792EA, type: 0xFFCB8B, string: 0xECC48D, number: 0xF78C6C, attribute: 0x7FDBCA, key: 0x82AAFF,
+        warning: 0xFFEB95, agent: 0xF78C6C,
+        ansi: [0x011627, 0xEF5350, 0x22DA6E, 0xADDB67, 0x82AAFF, 0xC792EA, 0x21C7A8, 0xFFFFFF,
+               0x575656, 0xEF5350, 0x22DA6E, 0xFFEB95, 0x82AAFF, 0xC792EA, 0x7FDBCA, 0xFFFFFF],
+        cursor: 0x80A4C2)
+    static let ayuLight = CodeTheme(id: "ayuLight", name: "Ayu Light", dark: false,
+        background: 0xFCFCFC, text: 0x5C6166, comment: 0x8A9199, accent: 0x399EE6, added: 0x6CBF43, removed: 0xE65050,
+        keyword: 0xFA8D3E, type: 0x399EE6, string: 0x86B300, number: 0xA37ACC, attribute: 0xF2AE49, key: 0x55B4D4,
+        warning: 0xE6A23C, agent: 0xFA8D3E,
+        ansi: [0x000000, 0xEA6C73, 0x86B300, 0xF2AE49, 0x399EE6, 0xA37ACC, 0x4CBF99, 0xC7C7C7,
+               0x686868, 0xF07171, 0x86B300, 0xFFB454, 0x59C2FF, 0xD2A6FF, 0x95E6CB, 0xFFFFFF],
+        cursor: 0xFF9940)
+    static let rosePineDawn = CodeTheme(id: "rosePineDawn", name: "Rosé Pine Dawn", dark: false,
+        background: 0xFAF4ED, text: 0x575279, comment: 0x9893A5, accent: 0x907AA9, added: 0x286983, removed: 0xB4637A,
+        keyword: 0x286983, type: 0x56949F, string: 0xEA9D34, number: 0xD7827E, attribute: 0x907AA9, key: 0xD7827E,
+        warning: 0xEA9D34, agent: 0xD7827E,
+        ansi: [0xF2E9E1, 0xB4637A, 0x286983, 0xEA9D34, 0x56949F, 0x907AA9, 0xD7827E, 0x575279,
+               0x9893A5, 0xB4637A, 0x286983, 0xEA9D34, 0x56949F, 0x907AA9, 0xD7827E, 0x575279],
+        cursor: 0x575279)
     static let githubDark = CodeTheme(id: "githubDark", name: "GitHub Dark", dark: true,
         background: 0x0D1117, text: 0xE6EDF3, comment: 0x8B949E, accent: 0x58A6FF, added: 0x3FB950, removed: 0xF85149,
         keyword: 0xFF7B72, type: 0xFFA657, string: 0xA5D6FF, number: 0x79C0FF, attribute: 0xD2A8FF, key: 0x79C0FF,
@@ -256,8 +298,9 @@ struct CodeTheme: Identifiable, Equatable {
         cursor: 0x0969DA)
 
     static let all: [CodeTheme] = [
-        automatic, forestNight, forestDay, solarizedDark, solarizedLight, tokyoNight, catppuccinMocha, catppuccinLatte,
-        rosePine, nord, gruvboxDark, dracula, oneDark, monokai, githubDark, githubLight,
+        automatic, forestNight, forestDay, everforestDark, everforestLight, solarizedDark, solarizedLight, tokyoNight,
+        kanagawa, nightOwl, catppuccinMocha, catppuccinLatte, rosePine, rosePineDawn, nord, gruvboxDark, dracula, oneDark,
+        monokai, ayuLight, githubDark, githubLight,
     ]
     static let defaultID = solarizedDark.id
 

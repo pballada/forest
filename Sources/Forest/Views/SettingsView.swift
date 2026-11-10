@@ -169,6 +169,11 @@ private struct ClaudeSettings: View {
     @AppStorage(SettingsKey.agentTool) private var agentTool = AgentTool.claude.rawValue
     @AppStorage(SettingsKey.customAgentCommand) private var customCommand = ""
 
+    @AppStorage(SettingsKey.soundNeedsInput) private var needsInputSound = "Glass"
+    @AppStorage(SettingsKey.soundFinished) private var finishedSound = "None"
+    @AppStorage(SettingsKey.soundOnlyInBackground) private var onlyInBackground = false
+    @AppStorage(SettingsKey.agentNotifications) private var notifications = false
+
     var body: some View {
         Form {
             Toggle("Claude helpers: commit messages, commit explanations, agent reviews", isOn: $aiFeatures)
@@ -195,6 +200,12 @@ private struct ClaudeSettings: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Divider()
+            soundPicker("When an agent needs you", selection: $needsInputSound)
+            soundPicker("When an agent finishes", selection: $finishedSound)
+            Toggle("Only play sounds when Forest is in the background", isOn: $onlyInBackground)
+            Toggle("Also show a notification when Forest is in the background", isOn: $notifications)
+                .onChange(of: notifications) { _, on in if on { AlertPreferences.requestNotificationPermission() } }
+            Divider()
             TextField("claude executable", text: $claudePath, prompt: Text(ClaudeCode.locateCLI() ?? "claude"))
             LabeledContent("Detected") {
                 if let path = ClaudeCode.locateCLI(override: claudePath.isEmpty ? nil : claudePath) {
@@ -210,6 +221,19 @@ private struct ClaudeSettings: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func soundPicker(_ title: String, selection: Binding<String>) -> some View {
+        HStack {
+            Picker(title, selection: selection) {
+                ForEach(AlertPreferences.sounds, id: \.self) { Text($0).tag($0) }
+            }
+            Button { AlertPreferences.play(selection.wrappedValue) } label: { Image(systemName: "speaker.wave.2") }
+                .buttonStyle(.borderless)
+                .help("Play")
+                .disabled(selection.wrappedValue == "None")
+        }
+        .onChange(of: selection.wrappedValue) { _, sound in AlertPreferences.play(sound) }
     }
 }
 

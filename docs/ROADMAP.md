@@ -1,5 +1,13 @@
 # Roadmap
 
+## Shipped in 0.5
+
+- Sidebar accordion: projects → worktrees → sessions, with per-agent indicators and a summary on folded projects
+- Sounds (and optional notifications) when an agent needs you or finishes
+- Automatic updates that download in the background and install on quit
+- Six more themes: Everforest Dark and Light, Kanagawa, Night Owl, Ayu Light, Rosé Pine Dawn
+- Help menu, About panel with links and credits, a launch crash fix
+
 ## Shipped in 0.4
 
 - One workspace window for every project; native git worktrees are gone, Claude worktrees are the unit of work

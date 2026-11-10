@@ -33,6 +33,19 @@ struct WorkspaceSidebar: View {
     }
 
     private var footer: some View {
+        VStack(spacing: 8) {
+            if let ready = Updater.shared.readyRelease {
+                UpdateReadyPill(version: ready.version)
+            }
+            footerButtons
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+        .background(theme.sidebarColor)
+    }
+
+    private var footerButtons: some View {
         HStack(spacing: 8) {
             Button {
                 (workspace.selectedStore ?? workspace.selectedProject?.main)?.sheet = .newAgent(base: nil)
@@ -69,10 +82,6 @@ struct WorkspaceSidebar: View {
             .buttonStyle(.plain)
             .help("Add a project (⌘O)")
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-        .background(theme.sidebarColor)
     }
 }
 
@@ -281,5 +290,29 @@ struct WorktreeRowMenu: View {
         action()
         WorkspaceStore.shared.select(project: project, worktree: worktree.path)
         project.store(for: worktree.path).sidebar = .terminal
+    }
+}
+
+/// A new version is downloaded and verified: it installs on quit, or now with Restart.
+private struct UpdateReadyPill: View {
+    let version: String
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.down.circle.fill").foregroundStyle(theme.accentColor)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Forest \(version) is ready").font(.system(size: 11.5, weight: .semibold))
+                Text("Installs when you quit").font(.system(size: 10.5)).foregroundStyle(theme.secondaryColor)
+            }
+            Spacer(minLength: 4)
+            Button("Restart") { Updater.shared.restartToUpdate() }
+                .controlSize(.small)
+                .help("Install Forest \(version) now and reopen; agents' sessions can be continued afterwards")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(theme.accentColor.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(theme.accentColor.opacity(0.3), lineWidth: 0.5))
     }
 }

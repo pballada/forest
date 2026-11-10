@@ -36,7 +36,7 @@ struct UpdateView: View {
 
     private var release: AppRelease? {
         switch updater.state {
-        case .available(let release), .downloading(let release, _), .installing(let release): release
+        case .available(let release), .downloading(let release, _), .installing(let release), .ready(let release, _): release
         default: nil
         }
     }
@@ -45,7 +45,8 @@ struct UpdateView: View {
         switch updater.state {
         case .idle, .checking: "Checking for updates…"
         case .upToDate: "Forest is up to date"
-        case .available(let release), .downloading(let release, _), .installing(let release): "Forest \(release.version) is here 🌲"
+        case .available(let release), .downloading(let release, _), .installing(let release), .ready(let release, _):
+            "Forest \(release.version) is here 🌲"
         case .failed: "Couldn't update"
         }
     }
@@ -56,7 +57,8 @@ struct UpdateView: View {
         case .upToDate: "You have the latest version, \(Updater.currentVersion)."
         case .available: "You have \(Updater.currentVersion). The update is signed and notarized, and Forest relaunches when it's done."
         case .downloading: "Downloading…"
-        case .installing: "Checking the signature and installing…"
+        case .installing: "Checking the signature…"
+        case .ready: "It's downloaded and verified, and installs itself when you quit Forest. Restart now to use it right away; your agents' sessions can be continued afterwards."
         case .failed(let message): message
         }
     }
@@ -79,6 +81,13 @@ struct UpdateView: View {
                 ProgressView(value: progress).tint(Theme.leaf)
             case .installing:
                 ProgressView().progressViewStyle(.linear).tint(Theme.leaf)
+            case .ready:
+                Spacer()
+                Button("Later") { dismissWindow() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Restart to Update") { updater.restartToUpdate() }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
             case .upToDate, .failed:
                 if case .failed = updater.state {
                     Link("Open the releases page", destination: URL(string: "https://github.com/pballada/forest/releases/latest")!)

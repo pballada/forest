@@ -62,6 +62,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { Updater.shared.installOnQuit() }
+    }
 }
 
 /// Lets models and menu commands open repository windows.
@@ -136,6 +140,9 @@ struct ForestCommands: Commands {
         }
 
         CommandGroup(after: .appInfo) {
+            if let ready = Updater.shared.readyRelease {
+                Button("Restart to Update to \(ready.version)") { Updater.shared.restartToUpdate() }
+            }
             Button("Check for Updates…") {
                 openWindow(id: "update")
                 Task { await Updater.shared.check(userInitiated: true) }

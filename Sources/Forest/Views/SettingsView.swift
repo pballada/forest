@@ -218,7 +218,7 @@ private struct UpdateSettings: View {
     @State private var updater = Updater.shared
 
     var body: some View {
-        Toggle("Check for updates automatically", isOn: $updater.automaticChecks)
+        Toggle("Update Forest automatically (installs when you quit)", isOn: $updater.automaticChecks)
         LabeledContent("Version \(Updater.currentVersion)") {
             HStack {
                 if let checked = updater.lastChecked {

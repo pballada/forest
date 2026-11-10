@@ -2,8 +2,9 @@ import AppKit
 import ForestCore
 import Observation
 
-/// Keeps Forest up to date from GitHub Releases: checks once a day, downloads the notarized zip,
-/// checks it is signed by the same Developer ID team, then swaps the app in place and relaunches.
+/// Keeps Forest up to date from GitHub Releases, automatically: it checks at launch and every few hours,
+/// downloads a newer notarized zip in the background, checks it is signed by the same Developer ID team,
+/// and swaps it in when Forest quits. "Restart to Update" applies it right away.
 @MainActor
 @Observable
 final class Updater {
@@ -16,6 +17,8 @@ final class Updater {
         case available(AppRelease)
         case downloading(AppRelease, progress: Double)
         case installing(AppRelease)
+        /// Downloaded and verified; installed when Forest quits (or now, with Restart).
+        case ready(AppRelease, app: URL)
         case failed(String)
     }
 
@@ -25,7 +28,7 @@ final class Updater {
     /// Only a release signed by this team, with this bundle identifier, is ever installed.
     private static let teamID = "5UXXXESGMK"
     private static let requirement = "anchor apple generic and identifier \"com.pballada.forest\" and certificate leaf[subject.OU] = \"\(teamID)\""
-    private static let interval: TimeInterval = 24 * 60 * 60
+    private static let interval: TimeInterval = 6 * 60 * 60
 
     private var timer: Task<Void, Never>?
     private var progressObservation: NSKeyValueObservation?
@@ -61,7 +64,7 @@ final class Updater {
 
     func check(userInitiated: Bool) async {
         switch state {
-        case .checking, .downloading, .installing: return
+        case .checking, .downloading, .installing, .ready: return
         default: break
         }
         state = .checking
@@ -76,8 +79,13 @@ final class Updater {
             UserDefaults.standard.set(lastChecked, forKey: SettingsKey.updateLastCheck)
             let skipped = UserDefaults.standard.string(forKey: SettingsKey.updateSkippedVersion)
             if UpdateFeed.isNewer(release.version, than: Self.currentVersion), userInitiated || release.version != skipped {
-                state = .available(release)
-                if !userInitiated { WindowOpener.openWindow?(id: "update") }
+                if automaticChecks && Self.canReplaceItself {
+                    // Fetch and verify quietly; it's installed when Forest quits.
+                    await prepare(release)
+                } else {
+                    state = .available(release)
+                    if !userInitiated { WindowOpener.openWindow?(id: "update") }
+                }
             } else {
                 state = userInitiated ? .upToDate : .idle
             }
@@ -92,21 +100,51 @@ final class Updater {
     }
 
     func dismiss() {
-        if case .downloading = state { return }
-        if case .installing = state { return }
-        state = .idle
+        switch state {
+        case .downloading, .installing, .ready: return
+        default: state = .idle
+        }
     }
 
+    static var canReplaceItself: Bool {
+        isBundled && FileManager.default.isWritableFile(atPath: Bundle.main.bundleURL.deletingLastPathComponent().path)
+    }
+
+    /// The downloaded, verified update, if one is waiting.
+    var readyRelease: AppRelease? {
+        if case .ready(let release, _) = state { return release }
+        return nil
+    }
+
+    /// Downloads and verifies now, then relaunches into the new version.
     func install(_ release: AppRelease) async {
         guard Self.isBundled else {
             NSWorkspace.shared.open(release.page)
             return
         }
-        let target = Bundle.main.bundleURL
-        guard FileManager.default.isWritableFile(atPath: target.deletingLastPathComponent().path) else {
-            state = .failed("Forest can't replace itself in \(target.deletingLastPathComponent().path). Download the update from GitHub instead.")
+        guard Self.canReplaceItself else {
+            state = .failed("Forest can't replace itself in \(Bundle.main.bundleURL.deletingLastPathComponent().path). Download the update from GitHub instead.")
             return
         }
+        await prepare(release)
+        restartToUpdate()
+    }
+
+    /// Swaps in the waiting update and opens the new version.
+    func restartToUpdate() {
+        guard case .ready(_, let app) = state else { return }
+        try? swap(in: app, reopen: true)
+        NSApp.terminate(nil)
+    }
+
+    /// Called as Forest quits: a waiting update replaces the app once this process has exited.
+    func installOnQuit() {
+        guard case .ready(_, let app) = state else { return }
+        try? swap(in: app, reopen: false)
+    }
+
+    /// Downloads the release and checks its signature, notarization and version.
+    private func prepare(_ release: AppRelease) async {
         state = .downloading(release, progress: 0)
         do {
             let folder = FileManager.default.temporaryDirectory.appendingPathComponent("ForestUpdate-\(UUID().uuidString)")
@@ -125,7 +163,7 @@ final class Updater {
                           failure: "macOS didn't accept the update's notarization, so it wasn't installed.")
             let version = Bundle(url: app)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
             guard version == release.version else { throw UpdateError("The download is version \(version ?? "?"), not \(release.version).") }
-            try relaunch(replacing: target, with: app)
+            state = .ready(release, app: app)
         } catch {
             state = .failed(error.localizedDescription)
         }
@@ -166,22 +204,22 @@ final class Updater {
         guard result.exitCode == 0 else { throw UpdateError(failure) }
     }
 
-    /// Hands over to a small shell script that waits for Forest to quit, swaps the bundles and reopens Forest.
-    /// If the swap fails, the old app is put back.
-    private func relaunch(replacing target: URL, with app: URL) throws {
+    /// Hands over to a small shell script that waits for Forest to quit, swaps the bundles and, with `reopen`,
+    /// opens the new version. If the swap fails, the old app is put back.
+    private func swap(in app: URL, reopen: Bool) throws {
         let script = """
         while kill -0 "$1" 2>/dev/null; do sleep 0.2; done
         backup="$2.previous-$$"
         if mv "$2" "$backup"; then
           if mv "$3" "$2"; then rm -rf "$backup"; else mv "$backup" "$2"; fi
         fi
-        open "$2"
+        if [ "$4" = 1 ]; then open "$2"; fi
         """
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", script, "forest-update", String(ProcessInfo.processInfo.processIdentifier), target.path, app.path]
+        process.arguments = ["-c", script, "forest-update", String(ProcessInfo.processInfo.processIdentifier),
+                             Bundle.main.bundleURL.path, app.path, reopen ? "1" : "0"]
         try process.run()
-        NSApp.terminate(nil)
     }
 }
 

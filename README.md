@@ -11,6 +11,7 @@
   <img alt="Apple silicon" src="https://img.shields.io/badge/Apple%20silicon-native-555?style=flat-square">
   <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white">
   <img alt="Notarized" src="https://img.shields.io/badge/notarized-Developer%20ID-555?style=flat-square">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-555?style=flat-square"></a>
 </p>
 <p align="center">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-first--class-D97757?style=flat-square">
@@ -47,6 +48,13 @@ Claude Code is the first-class citizen; Codex, Gemini CLI or any command run jus
 2. Have at least one agent CLI on your machine: [Claude Code](https://docs.claude.com/en/docs/claude-code),
    [Codex](https://github.com/openai/codex) or [Gemini CLI](https://github.com/google-gemini/gemini-cli).
 3. Optional: the [GitHub CLI](https://cli.github.com) (`gh auth login`) for pull requests and CI status.
+
+Or with Homebrew:
+
+```sh
+brew tap pballada/tap
+brew install --cask forest
+```
 
 Requires macOS 14 or later on Apple silicon. Forest uses your own `git`, so hooks, credential helpers, LFS, signing
 and config behave exactly as on the command line.
@@ -306,11 +314,16 @@ Tests/                  Swift Testing suites, many against real temporary reposi
 
 ## Roadmap and feedback
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next. Bugs and ideas are welcome in
-[Issues](https://github.com/pballada/forest/issues).
+See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next. Bugs are welcome in
+[Issues](https://github.com/pballada/forest/issues); questions and ideas in
+[Discussions](https://github.com/pballada/forest/discussions).
 
 ## Credits
 
 The embedded terminal is [Ghostty](https://ghostty.org)'s libghostty (MIT licensed); its licence ships inside the app.
 Claude Code is a product of Anthropic, Codex of OpenAI and Gemini CLI of Google; Forest isn't affiliated with any of
 them.
+
+## License
+
+Forest is released under the [MIT License](LICENSE). Third-party components keep their own licences (see Credits).
